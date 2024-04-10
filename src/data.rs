@@ -139,7 +139,7 @@ impl Data {
 /// So, for example, if a sample id has header index 0, and you have sample ids
 /// of [1,2,3], then calling this function with col_splt_idx of 0 would give
 /// a Vec of data rows which sample id 1, a Vec of with only sample id 2, etc.
-pub fn get_split_records(records: &Vec<DataRow>, col_splt_idx: usize) -> Option<Vec<(&DataVal, Vec<&DataRow>)>> {
+pub fn get_split_records<'a>(records: &'a Vec<&'a DataRow>, col_splt_idx: usize) -> Option<Vec<(&'a DataVal, Vec<&'a DataRow>)>> {
     let mut wrapping_vec: Vec<(&DataVal, Vec<&DataRow>)> = Vec::new();
     for record in records {
         if let Some(this_data_at_col) = record.get_data(col_splt_idx) {
@@ -153,7 +153,7 @@ pub fn get_split_records(records: &Vec<DataRow>, col_splt_idx: usize) -> Option<
                 }//end if we found a match
             }//end adding row with this_data_val/this_data_at_col to entry for matching
             if !found_match {
-                let mut new_row_group = Vec::new();
+                let mut new_row_group: Vec<&DataRow> = Vec::new();
                 new_row_group.push(record);
                 wrapping_vec.push((this_data_val, new_row_group));
             }//end if we need to add another group to wrapping vec
@@ -163,9 +163,29 @@ pub fn get_split_records(records: &Vec<DataRow>, col_splt_idx: usize) -> Option<
     Some(wrapping_vec)
 }//end get_split_records()
 
-/// Gets the average value from a single column of the grid made up of DataRows.
-/// Returns avg of integer values found, number of strings found, and avg of floats found 
-pub fn get_col_avg(records: &Vec<&DataRow>, col_idx: usize) -> (i64, f64, usize) {
+/// This function returns a Vector only containing DataRows whose value at column col_idx is equal to the expected.
+/// The intended purpose of this function is to return rows belonging to a particular category. For example, if
+/// you have a column 2 with header type, you might want to get rows with a type matching Sound. 
+pub fn get_filtered_records<'a>(records: &'a Vec<&'a DataRow>, col_idx: usize, expected: DataVal) -> Vec<&'a DataRow> {
+    let mut filtered_vec: Vec<&DataRow> = Vec::new();
+
+    for row in records {
+        if let Some(data_cell) = row.get_data(col_idx) {
+            // make sure data cell is equal to expected
+            if expected == *data_cell.get_data() {
+                filtered_vec.push(row);
+            }//end if this row matches the filter
+        } else {println!("Couldn't get data at col idx {} for row data {:?}", col_idx, row.get_row_data())}
+    }//end looping over each row
+
+    filtered_vec
+}//end get_filtered_records()
+
+/// Gets information on sum and counts of different data types within columns.
+/// This is formatted as (sum_info, count_info).
+/// sum_info contains the sum of ints and sum of floats.
+/// count_info contains the number of ints, floats, and strings.
+pub fn get_sum_count(records: &Vec<&DataRow>, col_idx: usize) -> ((i64,f64),(i64,f64,usize)) {
     let mut running_sums: (i64, f64) = (0,0.0);
     // int, float, string
     let mut running_counts: (i64, f64, usize) = (0,0.0,0);
@@ -178,12 +198,57 @@ pub fn get_col_avg(records: &Vec<&DataRow>, col_idx: usize) -> (i64, f64, usize)
             }//end matching type of cell data
         } else {println!("Couldn't get data at col idx {} for row data {:?}", col_idx, row.get_row_data())}
     }//end looping over each row
-    let int_avg; if running_counts.0 != 0 {
-        int_avg = running_sums.0 / running_counts.0;
-    } else {int_avg = 0;}
-    let flt_avg; if running_counts.1 != 0.0 {
-        flt_avg = running_sums.1 / running_counts.1;
+    (running_sums, running_counts)
+}//end get_sum_count
+
+/// Gets the average value from a single column of the grid made up of DataRows.
+/// Returns avg of integer values found, number of strings found, and avg of floats found 
+pub fn get_col_avg(records: &Vec<&DataRow>, col_idx: usize) -> (f64, f64, usize) {
+    let (sum_info, count_info) = get_sum_count(records, col_idx);
+    let int_avg; if count_info.0 != 0 {
+        int_avg = sum_info.0 as f64 / count_info.0 as f64;
+    } else {int_avg = 0.0;}
+    let flt_avg; if count_info.1 != 0.0 {
+        flt_avg = sum_info.1 / count_info.1;
     } else {flt_avg = 0.0;}
 
-    (int_avg, flt_avg, running_counts.2)
+    (int_avg, flt_avg, count_info.2)
 }//end get_col_avg
+
+// TODO: Rework avg and stdev to return one number for all integers or floats found
+
+/// Gets standard deviation from a single column.
+/// We don't assume that every row in that column has same type, so we return
+/// the stdev of all integers found, stdev of all floats found, and the number
+/// of strings found.
+pub fn get_col_stdev(records: &Vec<&DataRow>, col_idx: usize) -> (f64,f64,usize) {
+    let (_, count_info) = get_sum_count(records, col_idx);
+    let avg_info = get_col_avg(records, col_idx);
+    let mut running_sq_diff_sum: (f64, f64) = (0.0, 0.0);
+    for row in records {
+        if let Some(this_cell_at_col) = row.get_data(col_idx) {
+            match &this_cell_at_col.data {
+                DataVal::Int(i) => {
+                    let mean_diff = *i as f64 - avg_info.0;
+                    let sq_mean_diff = mean_diff.powf(2.0);
+                    running_sq_diff_sum.0 += sq_mean_diff;
+                },
+                DataVal::Float(f) => {
+                    let mean_diff = f - avg_info.1;
+                    let sq_mean_diff = mean_diff.powf(2.0);
+                    running_sq_diff_sum.1 += sq_mean_diff;
+                },
+                DataVal::String(_) => {},
+            }//end matching based on cell data type
+        } else {println!("Couldn't get data at col idx {} for row data {:?}", col_idx, row.get_row_data())}
+    }//end looping over each row
+
+    let mut variance_info: (f64, f64) = (0.0, 0.0);
+    if count_info.0 != 0 { variance_info.0 =  running_sq_diff_sum.0 / count_info.0 as f64; }
+    if count_info.1 != 0.0 { variance_info.1 = running_sq_diff_sum.1 / count_info.1 as f64; }
+
+    let int_stdev = variance_info.0.sqrt();
+    let flt_stdev = variance_info.1.sqrt();
+
+    (int_stdev, flt_stdev, count_info.2)
+}//end get_col_stdev
