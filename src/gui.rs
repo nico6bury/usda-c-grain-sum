@@ -19,52 +19,16 @@ impl GUI {
     /// Sets up all the properties and appearances of
     /// various widgets and UI settings.
     pub fn initialize() -> GUI {
-        let gui_app = App::default();
-        let (s,r) = app::channel();
-        
-        // set up main window properties
-        let mut ux_main_window = Window::default()
-            .with_size(900,480)
-            .with_label("USDA C-Grain Summarizer");
-        ux_main_window.make_resizable(true);
-        ux_main_window.end();
-
-        let ux_test_frame = Frame::default()
-            .with_pos(50,50)
-            .with_size(100,100);
-        ux_main_window.add(&ux_test_frame);
-
-        let ux_text_button = Button::default()
-            .with_size(50,50)
-            .with_pos(50,50)
-            .with_label("test button");
-        ux_main_window.add(&ux_text_button);
-
-        // self.msg_sender.send("test".to_string());
-        // println!("Sent test");
-
-        ux_main_window.show();
-        let _ = gui_app.run();
-
-        GUI {
-            app: gui_app,
-            ux_main_window,
-            msg_sender: s,
-            msg_receiver: r,
-        }
-    }//end initialize(self)
-
-    pub fn test() {
-        let flight_mill_log_processor = app::App::default();
-        let mut main_window = window::Window::default().with_size(900, 480).with_label("Rusty Flight Mill");
+        let c_grain_app = app::App::default();
+        let mut main_window = window::Window::default().with_size(900, 480).with_label("USDA C-Grain Summarizer");
 
         // set up header information
         let mut header_buf = text::TextBuffer::default();
         let mut header_box = text::TextDisplay::default().with_pos(10, 10).with_size(880, 140);
         header_box.set_buffer(header_buf.clone());
 
-        header_buf.append("Flight Mill Compression v.2.22\n");
-        header_buf.append("USDA-ARS Manhattan, KS\tMar/2023\tSixbury/Rust/Brabec\n");
+        header_buf.append("C-Grain Summarizer v##.##\n");
+        header_buf.append("USDA-ARS Manhattan, KS\n");
 
         let mut thresh_prompt_buf = text::TextBuffer::default();
         let mut prompt_threshold = text::TextDisplay::new(10,260,300,40,"");
@@ -87,8 +51,13 @@ impl GUI {
         main_window.end();
         main_window.show();
 
-        while flight_mill_log_processor.wait() {
-            
+        let (s,r) = app::channel();
+
+        GUI {
+            app: c_grain_app,
+            ux_main_window: main_window,
+            msg_sender: s,
+            msg_receiver: r,
         }
     }
 

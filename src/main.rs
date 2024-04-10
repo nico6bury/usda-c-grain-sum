@@ -1,4 +1,3 @@
-use fltk::{app, window, prelude::*, text, button};
 
 use crate::gui::GUI;
 
@@ -12,7 +11,11 @@ fn main() {
     // while gui.app.wait() {
 
     // }
-    GUI::test();
+    let gui = GUI::initialize();
+
+    while gui.wait() {
+
+    }
 
     println!("Program Exiting!");
 }
