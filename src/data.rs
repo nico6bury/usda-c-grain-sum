@@ -173,13 +173,17 @@ pub fn get_col_avg(records: &Vec<&DataRow>, col_idx: usize) -> (i64, f64, usize)
         if let Some(this_cell_at_col) = row.get_data(col_idx) {
             match this_cell_at_col.data {
                 DataVal::Int(i) => {running_sums.0 += i; running_counts.0 += 1;},
-                DataVal::Float(f) => {running_sums.1 += f; running_counts.2 += 1;},
+                DataVal::Float(f) => {running_sums.1 += f; running_counts.1 += 1.0;},
                 DataVal::String(_) => {running_counts.2 += 1;},
             }//end matching type of cell data
         } else {println!("Couldn't get data at col idx {} for row data {:?}", col_idx, row.get_row_data())}
     }//end looping over each row
-    let int_avg = running_sums.0 / running_counts.0;
-    let flt_avg = running_sums.1 / running_counts.1;
+    let int_avg; if running_counts.0 != 0 {
+        int_avg = running_sums.0 / running_counts.0;
+    } else {int_avg = 0;}
+    let flt_avg; if running_counts.1 != 0.0 {
+        flt_avg = running_sums.1 / running_counts.1;
+    } else {flt_avg = 0.0;}
 
     (int_avg, flt_avg, running_counts.2)
 }//end get_col_avg
