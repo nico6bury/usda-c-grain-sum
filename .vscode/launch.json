@@ -1,0 +1,45 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug executable 'usda-c-grain-sum'",
+            "cargo": {
+                "args": [
+                    "build",
+                    "--bin=usda-c-grain-sum",
+                    "--package=usda-c-grain-sum"
+                ],
+                "filter": {
+                    "name": "usda-c-grain-sum",
+                    "kind": "bin"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug unit tests in executable 'usda-c-grain-sum'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--bin=usda-c-grain-sum",
+                    "--package=usda-c-grain-sum"
+                ],
+                "filter": {
+                    "name": "usda-c-grain-sum",
+                    "kind": "bin"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        }
+    ]
+}
