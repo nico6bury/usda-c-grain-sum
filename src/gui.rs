@@ -67,4 +67,11 @@ impl GUI {
         dialog.show();
         dialog.filename()
     }//end get_file()
+
+    /// Gets a file from the user to save.
+    pub fn get_file_to_save() -> std::path::PathBuf {
+        let mut dialog = dialog::NativeFileChooser::new(dialog::NativeFileChooserType::BrowseSaveFile);
+        dialog.show();
+        dialog.filename()
+    }//end get_file_to_save()
 }//end impl for GUI
