@@ -1,4 +1,4 @@
-use fltk::{app::{self, App, Receiver, Sender}, button::{self, Button}, dialog, frame::Frame, prelude::{DisplayExt, GroupExt, WidgetBase, WidgetExt}, text, window::{self, Window}};
+use fltk::{app::{self, App, Receiver, Sender}, button::Button, dialog, prelude::{DisplayExt, GroupExt, WidgetExt}, text, window::{self, Window}};
 
 #[allow(dead_code)]
 pub struct GUI {

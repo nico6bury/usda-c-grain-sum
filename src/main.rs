@@ -1,7 +1,5 @@
 use std::path::PathBuf;
 
-use fltk::output;
-
 use crate::{data::{Data, DataVal}, gui::GUI};
 
 mod gui;
@@ -77,7 +75,7 @@ fn output_csv_sum(data: &Data, output_path: &PathBuf) {
     // get our csv writer
     let mut writer = csv::Writer::from_path(output_path).unwrap();
     // write headers
-    writer.write_field("ExtSampleID");
+    writer.write_field("ExtSampleID").unwrap();
     for (col_idx, header) in data.get_headers().iter().enumerate() {
         if col_idx >= 11 && col_idx <= 24 {
             let h1 = format!("{}Avg", header);
@@ -108,6 +106,7 @@ fn output_csv_sum(data: &Data, output_path: &PathBuf) {
 }//end output_csv_sum
 
 /// Formats a csv file in the format desired
+#[allow(dead_code)]
 fn format_csv_sum(data: &Data) {
     /* 
     Keep columns:
