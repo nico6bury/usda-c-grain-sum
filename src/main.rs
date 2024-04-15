@@ -20,7 +20,7 @@ fn main() {
             match msg.as_str() {
                 "GetFile" => {
                     // try to get file
-                    let path_buf = GUI::get_file();
+                    let path_buf = GUI::get_file_to_open();
                     match csv::Reader::from_path(path_buf) {
                         Ok(reader) => {
                             println!("We got the csv reader");

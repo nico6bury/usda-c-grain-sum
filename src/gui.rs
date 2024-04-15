@@ -61,8 +61,8 @@ impl GUI {
         self.app.wait()
     }//end wait(&self)
 
-    /// Gets a file from the user
-    pub fn get_file() -> std::path::PathBuf {
+    /// Gets a file from the user to open.
+    pub fn get_file_to_open() -> std::path::PathBuf {
         let mut dialog = dialog::NativeFileChooser::new(dialog::NativeFileChooserType::BrowseFile);
         dialog.show();
         dialog.filename()
