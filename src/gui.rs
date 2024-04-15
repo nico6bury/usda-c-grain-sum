@@ -37,7 +37,21 @@ impl GUI {
             .with_label("Select Input CSV")
             .with_pos(header_box.x(), header_box.y() + header_box.h() + 10)
             .with_size(125, 25);
-        input_file_btn.emit(s.clone(), "GetFile".to_string());
+        input_file_btn.emit(s.clone(), String::from("CSV::GetInputFile"));
+
+        // get output file from user
+        let mut output_file_btn = Button::default()
+            .with_label("Select Output CSV")
+            .with_pos(input_file_btn.x() + input_file_btn.w() + 10, input_file_btn.y())
+            .with_size(125, 25);
+        output_file_btn.emit(s.clone(), String::from("CSV::GetOutputFile"));
+
+        // process the data we have
+        let mut process_file_btn = Button::default()
+            .with_label("Process Data")
+            .with_pos(output_file_btn.x() + output_file_btn.w() + 10, output_file_btn.y())
+            .with_size(125, 25);
+        process_file_btn.emit(s.clone(), String::from("CSV::Process"));
 
         main_window.end();
         main_window.show();
