@@ -1,4 +1,4 @@
-use fltk::{app::{self, App, Receiver, Sender}, button::{Button, CheckButton}, dialog, enums::{Align, Color, FrameType}, frame::Frame, group::{Group, Tile}, prelude::{DisplayExt, GroupExt, WidgetExt}, text::{TextBuffer, TextDisplay, TextEditor}, window::{self, Window}};
+use fltk::{app::{self, App, Receiver, Sender}, button::{Button, CheckButton}, dialog, enums::{Align, FrameType}, frame::Frame, group::{Group, Tile}, prelude::{DisplayExt, GroupExt, WidgetExt}, text::{TextBuffer, TextDisplay, TextEditor}, window::{self, Window}};
 
 #[allow(dead_code)]
 pub struct GUI {
@@ -31,9 +31,11 @@ impl GUI {
         // let io_box_width = 240; boxes are centered between btn and rest of space in tile
         let io_box_height = 30;
         let io_box_padding = 10;
-        let io_box_frame = FrameType::DownFrame;
+        let io_box_frame = FrameType::GtkDownFrame;
         let cf_padding = 5;
         let cf_chck_height = 20;
+        let cf_chck_frame = FrameType::GtkUpFrame;
+        let cf_box_frame = FrameType::GtkDownFrame;
 
         let (s,r) = app::channel();
 
@@ -56,8 +58,17 @@ impl GUI {
             .with_size(header_group.w() - 20,header_group.h() - 20);
         header_group.add_resizable(&header_box);
         header_box.set_buffer(header_buf.clone());
-        header_buf.append("C-Grain Summarizer v##.##\n");
-        header_buf.append("USDA-ARS Manhattan, KS\n");
+        let version = option_env!("CARGO_PKG_VERSION");
+        let format_des = time::macros::format_description!("[month repr:long] [year]");
+        let date = compile_time::date!();
+        header_buf.append("USDA-ARS Manhattan, KS\tC-Grain Summarizer\n");
+        header_buf.append(&format!("{}\tv{}\t\tNicholas Sixbury/Dan Brabec\n", date.format(format_des).unwrap_or(String::from("unknown compile time")) ,version.unwrap_or("unknown version")));
+        header_buf.append("Processes CSV and XML Data from C-Grain into Sum Files\n");
+        header_buf.append("\nCurrent Config Info:\n");
+        header_buf.append("Filtering for Classification: Any | Sound | Sorghum\n");
+        header_buf.append("Stat Columns: Area, Length, Width, Thickness, Ratio, Mean Width, HSV, RGB\n");
+        header_buf.append("Classification Percent Columns: Yes\n");
+        header_buf.append("XML Sieve Data: Yes");
 
         // set up group with input and output controls, processing stuff
         let mut io_controls_group = Group::default()
@@ -146,12 +157,12 @@ impl GUI {
             .with_align(Align::Center);
         config_group.add(&config_label);
 
-        let class_filter_chck = CheckButton::default()
+        let mut class_filter_chck = CheckButton::default()
             .with_pos(config_label.x() + cf_padding, config_label.y() + config_label.h() + cf_padding)
             .with_size(180,cf_chck_height)
             .with_label("Filter to Classification of:");
-            // .with_align(Align::Right);
         class_filter_chck.set_checked(true);
+        class_filter_chck.set_frame(cf_chck_frame);
         config_group.add(&class_filter_chck);
 
         let mut class_filter_buf = TextBuffer::default();
@@ -159,15 +170,16 @@ impl GUI {
             .with_pos(class_filter_chck.x() + class_filter_chck.w() + cf_padding, class_filter_chck.y())
             .with_size(config_group.width() - (class_filter_chck.w() + (cf_padding * 3)), 25);
         class_filter_buf.set_text("Sound");
-        // class_filter_box.set_frame(FrameType::DownFrame);
+        class_filter_box.set_frame(cf_box_frame);
         class_filter_box.set_buffer(class_filter_buf);
         config_group.add_resizable(&class_filter_box);
 
-        let stat_cols_chck = CheckButton::default()
+        let mut stat_cols_chck = CheckButton::default()
             .with_pos(class_filter_chck.x(), class_filter_chck.y() + class_filter_chck.h() + cf_padding)
             .with_size(config_group.w() - cf_padding * 2, cf_chck_height)
             .with_label("Output Stat Columns from CSV Columns:");
         stat_cols_chck.set_checked(true);
+        stat_cols_chck.set_frame(cf_chck_frame);
         config_group.add(&stat_cols_chck);
 
         let mut stat_cols_buf = TextBuffer::default();
@@ -176,20 +188,23 @@ impl GUI {
             .with_size(stat_cols_chck.w(), 75);
         stat_cols_buf.set_text("Area\nLength\nWidth Thickness Ratio\nHue Brightness Saturation Red Green Blue");
         stat_cols_box.set_buffer(stat_cols_buf);
+        stat_cols_box.set_frame(cf_box_frame);
         config_group.add_resizable(&stat_cols_box);
 
-        let class_perc_chck = CheckButton::default()
+        let mut class_perc_chck = CheckButton::default()
             .with_pos(stat_cols_chck.x(), stat_cols_box.y() + stat_cols_box.h() + cf_padding)
             .with_size(stat_cols_chck.w(), cf_chck_height)
             .with_label("Outut Classification Percentages from CSV");
         class_perc_chck.set_checked(true);
+        class_perc_chck.set_frame(cf_chck_frame);
         config_group.add(&class_perc_chck);
 
-        let xml_sieve_chck = CheckButton::default()
+        let mut xml_sieve_chck = CheckButton::default()
             .with_pos(class_perc_chck.x(), class_perc_chck.y() + class_perc_chck.h() + cf_padding)
             .with_size(stat_cols_chck.w(), cf_chck_height)
             .with_label("Output XML Sieve Data if Found");
         xml_sieve_chck.set_checked(true);
+        xml_sieve_chck.set_frame(cf_chck_frame);
         config_group.add(&xml_sieve_chck);
 
         // set frame type for borders between sections, make sure to use box type
