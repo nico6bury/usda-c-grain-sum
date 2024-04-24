@@ -1,11 +1,60 @@
 use fltk::{app::{self, App, Receiver, Sender}, button::{Button, CheckButton}, dialog, enums::{Align, FrameType}, frame::Frame, group::{Group, Tile}, prelude::{DisplayExt, GroupExt, WidgetExt}, text::{TextBuffer, TextDisplay, TextEditor}, window::{self, Window}};
 
 #[allow(dead_code)]
+/// This struct represents a graphical user interface for the program.
+/// The program is meant to be written in an MVC way, without the GUI
+/// having a lot of control over processing, instead just letting the
+/// main file/controller handle things by reacting to the Receiver
+/// retrieved from get_receiver().
 pub struct GUI {
+    /// The main app struct. Used for event handling stuff later.
     app: App,
+    /// The main window struct. Holds all the other controls.
     ux_main_window: Window,
+    /// Holds debug messages sent by main
+    debug_log: Vec<String>,
+    /// Message Sender, used to send button events to main, essentially.
     msg_sender: Sender<String>,
+    /// Message Receiver, we give a reference to this to main, 
+    /// allowing it to receive our messages.
     msg_receiver: Receiver<String>,
+    /// Buffer holding text in the header display
+    ux_header_buf: TextBuffer,
+    /// Buffer holding the filename/path for input csv file.
+    ux_input_csv_buf: TextBuffer,
+    /// Buffer holding the filename/path for input xml file.
+    ux_input_xml_buf: TextBuffer,
+    /// Buffer holding the filename/path for the output file.
+    ux_output_file_buf: TextBuffer,
+    /// Check button in config section.  
+    /// Tells whether or not we should be filtering input
+    /// csv data to only include rows with a specific classification.
+    ux_cf_class_filter_chck: CheckButton,
+    /// Text buffer in config section.  
+    /// If we're filtering input csv data to only inlclude rows
+    /// with a specific classification, this tells us what
+    /// classification we're filtering for, such as "Sound".
+    ux_cf_class_filter_buf: TextBuffer,
+    /// Check button in config section.  
+    /// Tells us whether we should include columns in output
+    /// that are essentially statistics about certain columns
+    /// in the input csv.
+    ux_cf_stat_cols_chck: CheckButton,
+    /// Text buffer in config section.  
+    /// If we're including columns in the output that are essentially
+    /// statistics about certain columns in the input csv, this tells
+    /// us which columns in the input csv to do statistics on.
+    ux_cf_stat_cols_buf: TextBuffer,
+    /// Check button in config section.  
+    /// Tells us whether we should include columns in the output
+    /// about what percentage of each sample has each classification.  
+    /// So, %Sound, %Sorghum, etc.
+    ux_cf_class_perc_chck: CheckButton,
+    /// Check button in config section.  
+    /// Tells us whether we should include columns in the output
+    /// that are pulled from sieve data in the xml file. If no
+    /// xml file is loaded, then this is meaningless.
+    ux_cf_xml_sieve_chck: CheckButton,
 }//end struct GUI
 
 #[allow(dead_code)]
@@ -98,7 +147,7 @@ impl GUI {
             .with_pos(input_csv_btn.x() + input_csv_btn.w() + io_box_padding, input_csv_btn.y())
             .with_size(io_controls_group.w() - (input_csv_btn.w() + (3 * io_box_padding)), io_box_height);
         input_csv_box.set_frame(io_box_frame);
-        input_csv_box.set_buffer(input_csv_buf);
+        input_csv_box.set_buffer(input_csv_buf.clone());
         io_controls_group.add_resizable(&input_csv_box);
 
         let mut input_xml_btn = Button::default()
@@ -114,7 +163,7 @@ impl GUI {
             .with_pos(input_xml_btn.x() + input_xml_btn.w() + io_box_padding, input_xml_btn.y())
             .with_size(io_controls_group.w() - (input_xml_btn.w() + (3 * io_box_padding)), io_box_height);
         input_xml_box.set_frame(io_box_frame);
-        input_xml_box.set_buffer(input_xml_buf);
+        input_xml_box.set_buffer(input_xml_buf.clone());
         io_controls_group.add_resizable(&input_xml_box);
 
         // get output file from user
@@ -131,7 +180,7 @@ impl GUI {
             .with_pos(output_file_btn.x() + output_file_btn.w() + io_box_padding, output_file_btn.y())
             .with_size(io_controls_group.w() - (output_file_btn.w() + (3 * io_box_padding)), io_box_height);
         output_file_box.set_frame(io_box_frame);
-        output_file_box.set_buffer(output_file_buf);
+        output_file_box.set_buffer(output_file_buf.clone());
         io_controls_group.add_resizable(&output_file_box);
 
         // process the data we have
@@ -169,9 +218,9 @@ impl GUI {
         let mut class_filter_box = TextEditor::default()
             .with_pos(class_filter_chck.x() + class_filter_chck.w() + cf_padding, class_filter_chck.y())
             .with_size(config_group.width() - (class_filter_chck.w() + (cf_padding * 3)), 25);
+        class_filter_box.set_buffer(class_filter_buf.clone());
         class_filter_buf.set_text("Sound");
         class_filter_box.set_frame(cf_box_frame);
-        class_filter_box.set_buffer(class_filter_buf);
         config_group.add_resizable(&class_filter_box);
 
         let mut stat_cols_chck = CheckButton::default()
@@ -186,8 +235,8 @@ impl GUI {
         let mut stat_cols_box = TextEditor::default()
             .with_pos(stat_cols_chck.x(), stat_cols_chck.y() + stat_cols_chck.h() + cf_padding)
             .with_size(stat_cols_chck.w(), 75);
+        stat_cols_box.set_buffer(stat_cols_buf.clone());
         stat_cols_buf.set_text("Area\nLength\nWidth Thickness Ratio\nHue Brightness Saturation Red Green Blue");
-        stat_cols_box.set_buffer(stat_cols_buf);
         stat_cols_box.set_frame(cf_box_frame);
         config_group.add_resizable(&stat_cols_box);
 
@@ -218,8 +267,19 @@ impl GUI {
         GUI {
             app: c_grain_app,
             ux_main_window: main_window,
+            debug_log: Vec::new(),
             msg_sender: s,
             msg_receiver: r,
+            ux_header_buf: header_buf,
+            ux_input_csv_buf: input_csv_buf,
+            ux_input_xml_buf: input_xml_buf,
+            ux_output_file_buf: output_file_buf,
+            ux_cf_class_filter_chck: class_filter_chck,
+            ux_cf_class_filter_buf: class_filter_buf,
+            ux_cf_stat_cols_chck: stat_cols_chck,
+            ux_cf_stat_cols_buf: stat_cols_buf,
+            ux_cf_class_perc_chck: class_perc_chck,
+            ux_cf_xml_sieve_chck: xml_sieve_chck,
         }//end struct construction
     }
 
