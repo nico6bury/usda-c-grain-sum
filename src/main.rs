@@ -33,7 +33,7 @@ fn main() {
                             input_data = Some(data);
                             // format_csv_sum(&data);
                         },
-                        Err(_) => println!("Couldn't get csv reader."),
+                        Err(_) => GUI::show_message("Couldn't get csv reader."),
                     }//end matching result of getting csv reader
                 },
                 "CSV::GetOutputFile" => {
@@ -51,10 +51,10 @@ fn main() {
                                     output_file = None;
                                     println!("Finished outputing processed file.");
                                 },
-                                None => println!("No Output File Selected")
+                                None => GUI::show_message("No Output File Selected")
                             }//end matching existence of output file
                         },
-                        None => println!("No Input File Loaded")
+                        None => GUI::show_message("No Input File Loaded")
                     }//end matching existence of input file
                 }//end matching CSV::process
                 _ => println!("Unrecognized message {}.", msg)
