@@ -4,6 +4,7 @@ use crate::{data::{Data, DataVal}, gui::GUI};
 
 mod gui;
 mod data;
+mod config_store;
 
 fn main() {
     // set up main application and window
