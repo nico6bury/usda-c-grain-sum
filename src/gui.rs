@@ -1,4 +1,6 @@
-use fltk::{app::{self, App, Receiver, Sender}, button::{Button, CheckButton}, dialog, enums::{Align, FrameType}, frame::Frame, group::{Group, Tile}, prelude::{DisplayExt, GroupExt, WidgetExt}, text::{TextBuffer, TextDisplay, TextEditor}, window::{self, Window}};
+use std::{borrow::{Borrow, BorrowMut}, cell::RefCell, path::PathBuf, rc::Rc};
+
+use fltk::{app::{self, App, Receiver, Sender}, button::{Button, CheckButton}, dialog::{self, NativeFileChooserOptions}, enums::{Align, Event, FrameType}, frame::Frame, group::{Group, Tile}, prelude::{DisplayExt, GroupExt, WidgetBase, WidgetExt, WindowExt}, text::{TextBuffer, TextDisplay, TextEditor}, window::{self, Window}};
 
 use crate::config_store::ConfigStore;
 
@@ -23,11 +25,11 @@ pub struct GUI {
     /// Buffer holding text in the header display
     ux_header_buf: TextBuffer,
     /// Buffer holding the filename/path for input csv file.
-    ux_input_csv_buf: TextBuffer,
+    ux_input_csv_txt: Rc<RefCell<TextEditor>>,
     /// Buffer holding the filename/path for input xml file.
-    ux_input_xml_buf: TextBuffer,
+    ux_input_xml_txt: Rc<RefCell<TextEditor>>,
     /// Buffer holding the filename/path for the output file.
-    ux_output_file_buf: TextBuffer,
+    ux_output_file_txt: Rc<RefCell<TextEditor>>,
     /// Check button in config section.  
     /// Tells whether or not we should be filtering input
     /// csv data to only include rows with a specific classification.
@@ -141,44 +143,82 @@ impl GUI {
             .with_label("Select Input CSV")
             .with_pos(io_controls_label.x() + io_btn_padding, io_controls_label.y() +  io_controls_label.h() + io_btn_padding)
             .with_size(io_btn_width, io_btn_height);
-        input_csv_btn.emit(s.clone(), String::from("CSV::GetInputFile"));
+        // input_csv_btn.emit(s.clone(), String::from("CSV::GetInputFile"));
         input_csv_btn.set_frame(io_btn_frame);
         io_controls_group.add(&input_csv_btn);
 
         let input_csv_buf = TextBuffer::default();
-        let mut input_csv_box = TextDisplay::default()
+        let mut input_csv_box = TextEditor::default()
             .with_pos(input_csv_btn.x() + input_csv_btn.w() + io_box_padding, input_csv_btn.y())
             .with_size(io_controls_group.w() - (input_csv_btn.w() + (3 * io_box_padding)), io_box_height);
         input_csv_box.set_frame(io_box_frame);
-        input_csv_box.set_buffer(input_csv_buf.clone());
         input_csv_box.set_scrollbar_align(Align::Bottom);
         input_csv_box.set_scrollbar_size(7);
+        input_csv_box.set_buffer(input_csv_buf.clone());
         io_controls_group.add_resizable(&input_csv_box);
+        let input_csv_ref = Rc::from(RefCell::from(input_csv_box));
+        // let input_csv_pathbuf = Rc::from(RefCell::from(None));
+
+        input_csv_btn.handle({
+            let input_csv_ref_clone = input_csv_ref.clone();
+            let sender_clone = s.clone();
+            move |_, ev| {
+                let input_csv_ref = input_csv_ref_clone.as_ref().borrow();
+                match ev {
+                    Event::Released => {
+                        if let Err(err_message) = GUI::create_io_dialog(&sender_clone, "IO::CSVInputFile", &input_csv_ref, dialog::NativeFileChooserType::BrowseFile, dialog::NativeFileChooserOptions::UseFilterExt, "*.csv", "Please select a csv input file") {
+                            println!("Encountered an error when attempting to show file dialog:\n{}", err_message);
+                        }//end if we got an error
+                        true
+                    },
+                    _ => false,
+                }//end matching events
+            }//end moving closure for button event
+        });
 
         let mut input_xml_btn = Button::default()
             .with_label("Select Input XML")
             .with_pos(input_csv_btn.x(), input_csv_btn.y() + input_csv_btn.h() + io_btn_padding)
             .with_size(io_btn_width, io_btn_height);
-        input_xml_btn.emit(s.clone(), String::from("XML::GetInputFile"));
+        // input_xml_btn.emit(s.clone(), String::from("IO::XMLInputFile"));
         input_xml_btn.set_frame(io_btn_frame);
         io_controls_group.add(&input_xml_btn);
 
         let input_xml_buf = TextBuffer::default();
-        let mut input_xml_box = TextDisplay::default()
+        let mut input_xml_box = TextEditor::default()
             .with_pos(input_xml_btn.x() + input_xml_btn.w() + io_box_padding, input_xml_btn.y())
             .with_size(io_controls_group.w() - (input_xml_btn.w() + (3 * io_box_padding)), io_box_height);
         input_xml_box.set_frame(io_box_frame);
-        input_xml_box.set_buffer(input_xml_buf.clone());
         input_xml_box.set_scrollbar_align(Align::Bottom);
         input_xml_box.set_scrollbar_size(7);
+        input_xml_box.set_buffer(input_xml_buf.clone());
         io_controls_group.add_resizable(&input_xml_box);
+        let input_xml_ref = Rc::from(RefCell::from(input_xml_box));
+        // let input_xml_pathbuf = Rc::from(RefCell::from(None));
+
+        input_xml_btn.handle({
+            let input_xml_ref_clone = input_xml_ref.clone();
+            let sender_clone = s.clone();
+            move |_, ev| {
+                let input_xml_ref = input_xml_ref_clone.as_ref().borrow();
+                match ev {
+                    Event::Released => {
+                        if let Err(err_message) = GUI::create_io_dialog(&sender_clone, "IO::XMLInputFile", &input_xml_ref, dialog::NativeFileChooserType::BrowseFile, dialog::NativeFileChooserOptions::UseFilterExt, "*.xml", "Please select an xml input file") {
+                            println!("Encountered an error when attempting to show file dialog:\n{}", err_message);
+                        }//end if we got an error
+                        true
+                    },
+                    _ => false,
+                }//end matching events
+            }//end moving closure for button event
+        });
 
         // get output file from user
         let mut output_file_btn = Button::default()
             .with_label("Select Output CSV")
             .with_pos(input_xml_btn.x(), input_xml_btn.y() + input_xml_btn.h() + io_btn_padding)
             .with_size(io_btn_width, io_btn_height);
-        output_file_btn.emit(s.clone(), String::from("CSV::GetOutputFile"));
+        // output_file_btn.emit(s.clone(), String::from("IO::OutputFile"));
         output_file_btn.set_frame(io_btn_frame);
         io_controls_group.add(&output_file_btn);
 
@@ -187,17 +227,36 @@ impl GUI {
             .with_pos(output_file_btn.x() + output_file_btn.w() + io_box_padding, output_file_btn.y())
             .with_size(io_controls_group.w() - (output_file_btn.w() + (3 * io_box_padding)), io_box_height);
         output_file_box.set_frame(io_box_frame);
-        output_file_box.set_buffer(output_file_buf.clone());
         output_file_box.set_scrollbar_align(Align::Bottom);
         output_file_box.set_scrollbar_size(7);
+        output_file_box.set_buffer(output_file_buf.clone());
         io_controls_group.add_resizable(&output_file_box);
+        let output_file_ref = Rc::from(RefCell::from(output_file_box));
+        // let output_file_pathbuf = Rc::from(RefCell::from(None));
+
+        output_file_btn.handle({
+            let output_file_ref_clone = output_file_ref.clone();
+            let sender_clone = s.clone();
+            move |_, ev| {
+                let output_file_ref = output_file_ref_clone.as_ref().borrow();
+                match ev {
+                    Event::Released => {
+                        if let Err(err_message) = GUI::create_io_dialog(&sender_clone, "IO::OutputFile", &output_file_ref, dialog::NativeFileChooserType::BrowseSaveFile, dialog::NativeFileChooserOptions::SaveAsConfirm, "", "Please specify the output file.") {
+                            println!("Encountered an error when attempting to show file dialog:\n{}", err_message);
+                        }//end if we got an error
+                        true
+                    },
+                    _ => false,
+                }//end matching events
+            }//end moving closure for button event
+        });
 
         // process the data we have
         let mut process_file_btn = Button::default()
             .with_label("Process Data")
             .with_pos(output_file_btn.x() + 60, output_file_btn.y() + output_file_btn.h() + 10)
             .with_size(250, 50);
-        process_file_btn.emit(s.clone(), String::from("CSV::Process"));
+        process_file_btn.emit(s.clone(), String::from("Proc::Sum"));
         process_file_btn.set_frame(FrameType::PlasticDownBox);
         io_controls_group.add_resizable(&process_file_btn);
 
@@ -251,10 +310,17 @@ impl GUI {
         stat_cols_box.set_buffer(stat_cols_buf.clone());
         stat_cols_buf.set_text("Area, Length, Width, Thickness, \nRatio, Mean Width, Volume, Weight\nLight, Hue, Saturation\nRed, Green, Blue");
         stat_cols_box.set_frame(cf_box_frame);
-        stat_cols_box.set_tooltip("Columns in CSV input to do statistics on. Separate values by a new line or comma. When separating by comma, include 1 or 0 spaces after the comma.");
+        stat_cols_box.set_tooltip("Columns in CSV input to do statistics on. Separate values by a new line or comma. When separating by comma, include 1 or 0 spaces after the comma. To get a list of potential column headers, click this box and press F1.");
         stat_cols_box.set_scrollbar_align(Align::Right);
         stat_cols_box.set_scrollbar_size(12);
         config_group.add_resizable(&stat_cols_box);
+
+        stat_cols_box.add_key_binding(fltk::enums::Key::F1, fltk::enums::Shortcut::None, |_, _| {
+            dialog::message_title("Some Potential Column Headings");
+            dialog::message(0, 0, "Some of the possible column headers are: \nArea, Length, Thickness, Mean Width, Ratio, Volume, Weight, \nBrightness, Hue, Saturation, Red, Green, Blue, Severity.");
+            0
+        });
+        
 
         let mut class_perc_chck = CheckButton::default()
             .with_pos(stat_cols_chck.x(), stat_cols_box.y() + stat_cols_box.h() + cf_padding)
@@ -289,9 +355,9 @@ impl GUI {
             msg_sender: s,
             msg_receiver: r,
             ux_header_buf: header_buf,
-            ux_input_csv_buf: input_csv_buf,
-            ux_input_xml_buf: input_xml_buf,
-            ux_output_file_buf: output_file_buf,
+            ux_input_csv_txt: input_csv_ref,
+            ux_input_xml_txt: input_xml_ref,
+            ux_output_file_txt: output_file_ref,
             ux_cf_class_filter_chck: class_filter_chck,
             ux_cf_class_filter_buf: class_filter_buf,
             ux_cf_stat_cols_chck: stat_cols_chck,
@@ -300,6 +366,42 @@ impl GUI {
             ux_cf_xml_sieve_chck: xml_sieve_chck,
         }//end struct construction
     }
+
+    /// Helper method used in initialize to share code between handlers
+    /// of io buttons.
+    fn create_io_dialog(sender: &Sender<String>, msg_header: &str, txt: &TextEditor, dialog_type: dialog::NativeFileChooserType, dialog_option: dialog::NativeFileChooserOptions, dialog_filter: &str, dialog_title: &str ) -> Result<(), String> {
+        // make sure textbuffer is accessible
+        let mut txt_buf = match txt.buffer() {
+            Some(buf) => buf,
+            None => {
+                return Err(format!("For some reason we couldn't access teh textbuffer. Oops. This should never happen."));
+            }};
+        // set up dialog with all the settings
+        let mut dialog = dialog::NativeFileChooser::new(dialog_type);
+        dialog.set_option(dialog_option);
+        dialog.set_filter(dialog_filter);
+        dialog.set_title(dialog_title);
+        dialog.show();
+        // make sure the dialog didn't have an error
+        let dialog_error = dialog.error_message().unwrap_or_else(|| "".to_owned()).replace("No error", "");
+        if dialog_error != "" {
+            return Err(format!("We encountered a dialog error somehow. Details below:\n{}", dialog_error));
+        }//end if dialog had an error
+        // make sure we can get the file from the dialog
+        match dialog.filename().as_os_str().to_str() {
+            Some(filepath) => {
+                match dialog.filename().file_name() {
+                    Some(filename_os) => {
+                        match filename_os.to_str() {
+                            Some(filename) => {
+                                txt_buf.set_text(filename);
+                                sender.send(format!("{}::{}", msg_header, filepath));
+                            }, None => return Err(format!("Couldn't get filename for some reason. Failed at to_str()."))
+                        }}, None => return Err(format!("Couldn't get filename for some reason. Maybe dialog was cancelled."))}
+            }, None => return Err(format!("Couldn't get filepath for some reason."))}
+
+        return Ok(());
+    }//end create_io_dialog()
 
     /// Makes the main window visible.
     pub fn show(&mut self) {
@@ -360,4 +462,14 @@ impl GUI {
         self.ux_cf_class_perc_chck.set_checked(config.csv_class_percent_enabled);
         self.ux_cf_xml_sieve_chck.set_checked(config.xml_sieve_cols_enabled);
     }//end set_config_store(self, config)
+
+    /// Gives a small visual indication that the program is doing something in the background.
+    pub fn start_wait(&mut self) {
+        self.ux_main_window.set_cursor(fltk::enums::Cursor::Wait);
+    }//end start_wait(self)
+
+    /// Clears the visual indication from start_wait()
+    pub fn end_wait(&mut self) {
+        self.ux_main_window.set_cursor(fltk::enums::Cursor::Default);
+    }
 }//end impl for GUI

@@ -14,7 +14,7 @@ fn main() {
     // while gui.app.wait() {
 
     // }
-    let gui = GUI::initialize();
+    let mut gui = GUI::initialize();
 
     let recv = gui.get_receiver();
     let mut input_data = None;
@@ -22,44 +22,72 @@ fn main() {
 
     while gui.wait() {
         if let Some(msg) = recv.recv() {
-            match msg.as_str() {
-                "CSV::GetInputFile" => {
-                    // try to get file
-                    let path_buf = GUI::get_file_to_open();
-                    match csv::Reader::from_path(path_buf.clone()) {
-                        Ok(reader) => {
-                            println!("We got the csv reader");
-                            let data = Data::from_csv_reader(reader).unwrap();
-                            println!("We finished reading {} records from the csv", data.get_records().len());
-                            input_data = Some(data);
-                            // format_csv_sum(&data);
+            let msg_parts: Vec<&str> = msg.split("::").collect();
+            // general location, sorta
+            let msg_loc = *msg_parts.get(0).unwrap_or(&"None");
+            // more specific of what message is being sent
+            let msg_fun = *msg_parts.get(1).unwrap_or(&"None");
+            // any value sent over 
+            let msg_stf = *msg_parts.get(2).unwrap_or(&"None");
+            match msg_loc {
+                "IO" => {
+                    match msg_fun {
+                        "CSVInputFile" => {
+                            if msg_stf != "None" {
+                                // try to get csv file
+                                gui.start_wait();
+                                let path_buf = PathBuf::from(msg_stf);
+                                match csv::Reader::from_path(path_buf.clone()) {
+                                    Ok(reader) => {
+                                        println!("We got the csv reader");
+                                        let data = Data::from_csv_reader(reader).unwrap();
+                                        println!("We finished reading {} records from the csv", data.get_records().len());
+                                        input_data = Some(data);
+                                        // format_csv_sum(&data);
+                                    },
+                                    Err(_) => GUI::show_message("Couldn't get csv reader."),
+                                }//end matching result of getting csv reader
+                                gui.end_wait();
+                            }
                         },
-                        Err(_) => GUI::show_message("Couldn't get csv reader."),
-                    }//end matching result of getting csv reader
+                        "XMLInputFile" => {
+                            GUI::show_message("XML Support not yet added...");
+                        },
+                        "OutputFile" => {
+                            // let path_buf = GUI::get_file_to_save();
+                            // output_file = Some(path_buf);
+                        },
+                        "None" => println!("No message function for msg {} ???", msg),
+                        _ => println!("Unrecognized msg_fun {} in msg {}", msg_fun, msg),
+                    }//end matching message function
                 },
-                "CSV::GetOutputFile" => {
-                    let path_buf = GUI::get_file_to_save();
-                    output_file = Some(path_buf);
-                },
-                "CSV::Process" => {
-                    match &input_data {
-                        Some(input) => {
-                            match &output_file {
-                                Some(output) => {
-                                    println!("Started processing and outputing file.");
-                                    output_csv_sum(input, output);
-                                    input_data = None;
-                                    output_file = None;
-                                    println!("Finished outputing processed file.");
+                "Proc" => {
+                    match msg_fun {
+                        "Sum" => {
+                            match &input_data {
+                                Some(input) => {
+                                    match &output_file {
+                                        Some(output) => {
+                                            println!("Started processing and outputing file.");
+                                            output_csv_sum(input, output);
+                                            input_data = None;
+                                            output_file = None;
+                                            println!("Finished outputing processed file.");
+                                        },
+                                        None => GUI::show_message("No Output File Selected")
+                                    }//end matching existence of output file
                                 },
-                                None => GUI::show_message("No Output File Selected")
-                            }//end matching existence of output file
+                                None => GUI::show_message("No Input File Loaded")
+                            }//end matching existence of input file
                         },
-                        None => GUI::show_message("No Input File Loaded")
-                    }//end matching existence of input file
-                }//end matching CSV::process
-                _ => println!("Unrecognized message {}.", msg)
-            }//end matching the message we recieved
+                        "None" => {
+
+                        },
+                        _ => println!("Unrecognized msg_fun {} in msg {}", msg_fun, msg),
+                    }//end matching message function
+                },
+                _ => println!("Unrecognized msg_loc {} in msg {}", msg_loc, msg),
+            }//end matching message location
         }//end if we recieved a message
     }//end main application loop
 
