@@ -1,5 +1,7 @@
 use fltk::{app::{self, App, Receiver, Sender}, button::{Button, CheckButton}, dialog, enums::{Align, FrameType}, frame::Frame, group::{Group, Tile}, prelude::{DisplayExt, GroupExt, WidgetExt}, text::{TextBuffer, TextDisplay, TextEditor}, window::{self, Window}};
 
+use crate::config_store::ConfigStore;
+
 #[allow(dead_code)]
 /// This struct represents a graphical user interface for the program.
 /// The program is meant to be written in an MVC way, without the GUI
@@ -59,17 +61,17 @@ pub struct GUI {
 
 #[allow(dead_code)]
 impl GUI {
-    /// Returns a reference to receiver so you can
+    /// Returns a clone of the receiver so you can
     /// react to messages sent by gui.
-    pub fn get_receiver(&self) -> &Receiver<String> {
-        return &self.msg_receiver;
+    pub fn get_receiver(&self) -> Receiver<String> {
+        return self.msg_receiver.clone();
     }//end get_receiver(self)
 
     /// Sets up all the properties and appearances of
     /// various widgets and UI settings.
     pub fn initialize() -> GUI {
         let c_grain_app = app::App::default();
-        let mut main_window = window::Window::default().with_size(700, 400).with_label("USDA C-Grain Summarizer");
+        let mut main_window = window::Window::default().with_size(700, 325).with_label("USDA C-Grain Summarizer");
         main_window.end();
 
         // define some constants to be used repeatedly for sizing and styling
@@ -97,7 +99,7 @@ impl GUI {
         // set up header information
         let mut header_group = Group::default()
             .with_pos(0,0)
-            .with_size(tile_group.w(), tile_group.h() / 9 * 4);
+            .with_size(tile_group.w(), tile_group.h() / 13 * 4);
         header_group.end();
         tile_group.add(&header_group);
 
@@ -113,11 +115,12 @@ impl GUI {
         header_buf.append("USDA-ARS Manhattan, KS\tC-Grain Summarizer\n");
         header_buf.append(&format!("{}\tv{}\t\tNicholas Sixbury/Dan Brabec\n", date.format(format_des).unwrap_or(String::from("unknown compile time")) ,version.unwrap_or("unknown version")));
         header_buf.append("Processes CSV and XML Data from C-Grain into Sum Files\n");
-        header_buf.append("\nCurrent Config Info:\n");
-        header_buf.append("Filtering for Classification: Any | Sound | Sorghum\n");
-        header_buf.append("Stat Columns: Area, Length, Width, Thickness, Ratio, Mean Width, HSV, RGB\n");
-        header_buf.append("Classification Percent Columns: Yes\n");
-        header_buf.append("XML Sieve Data: Yes");
+        // header_buf.append("\nCurrent Config Info:\n");
+        // header_buf.append("Filtering for Classification: Any | Sound | Sorghum\n");
+        // header_buf.append("Stat Columns: Area, Length, Width, Thickness, Ratio, Mean Width, HSV, RGB\n");
+        // header_buf.append("Classification Percent Columns: Yes\n");
+        // header_buf.append("XML Sieve Data: Yes");
+        header_box.set_scrollbar_align(Align::Right);
 
         // set up group with input and output controls, processing stuff
         let mut io_controls_group = Group::default()
@@ -143,11 +146,13 @@ impl GUI {
         io_controls_group.add(&input_csv_btn);
 
         let input_csv_buf = TextBuffer::default();
-        let mut input_csv_box = TextEditor::default()
+        let mut input_csv_box = TextDisplay::default()
             .with_pos(input_csv_btn.x() + input_csv_btn.w() + io_box_padding, input_csv_btn.y())
             .with_size(io_controls_group.w() - (input_csv_btn.w() + (3 * io_box_padding)), io_box_height);
         input_csv_box.set_frame(io_box_frame);
         input_csv_box.set_buffer(input_csv_buf.clone());
+        input_csv_box.set_scrollbar_align(Align::Bottom);
+        input_csv_box.set_scrollbar_size(7);
         io_controls_group.add_resizable(&input_csv_box);
 
         let mut input_xml_btn = Button::default()
@@ -159,11 +164,13 @@ impl GUI {
         io_controls_group.add(&input_xml_btn);
 
         let input_xml_buf = TextBuffer::default();
-        let mut input_xml_box = TextEditor::default()
+        let mut input_xml_box = TextDisplay::default()
             .with_pos(input_xml_btn.x() + input_xml_btn.w() + io_box_padding, input_xml_btn.y())
             .with_size(io_controls_group.w() - (input_xml_btn.w() + (3 * io_box_padding)), io_box_height);
         input_xml_box.set_frame(io_box_frame);
         input_xml_box.set_buffer(input_xml_buf.clone());
+        input_xml_box.set_scrollbar_align(Align::Bottom);
+        input_xml_box.set_scrollbar_size(7);
         io_controls_group.add_resizable(&input_xml_box);
 
         // get output file from user
@@ -181,6 +188,8 @@ impl GUI {
             .with_size(io_controls_group.w() - (output_file_btn.w() + (3 * io_box_padding)), io_box_height);
         output_file_box.set_frame(io_box_frame);
         output_file_box.set_buffer(output_file_buf.clone());
+        output_file_box.set_scrollbar_align(Align::Bottom);
+        output_file_box.set_scrollbar_size(7);
         io_controls_group.add_resizable(&output_file_box);
 
         // process the data we have
@@ -212,6 +221,7 @@ impl GUI {
             .with_label("Filter to Classification of:");
         class_filter_chck.set_checked(true);
         class_filter_chck.set_frame(cf_chck_frame);
+        class_filter_chck.set_tooltip("If checked, processing will only consider rows in csv data matching the given classification(s).");
         config_group.add(&class_filter_chck);
 
         let mut class_filter_buf = TextBuffer::default();
@@ -221,6 +231,8 @@ impl GUI {
         class_filter_box.set_buffer(class_filter_buf.clone());
         class_filter_buf.set_text("Sound");
         class_filter_box.set_frame(cf_box_frame);
+        class_filter_box.set_tooltip("Separate values by a comma or |. When separating by comma, include 1 or 0 spaces after the comma. When separating by |, include 1 space on either side or no space on either side.");
+        class_filter_box.set_scrollbar_align(Align::Clip);
         config_group.add_resizable(&class_filter_box);
 
         let mut stat_cols_chck = CheckButton::default()
@@ -229,6 +241,7 @@ impl GUI {
             .with_label("Output Stat Columns from CSV Columns:");
         stat_cols_chck.set_checked(true);
         stat_cols_chck.set_frame(cf_chck_frame);
+        stat_cols_chck.set_tooltip("If checked, then columns will be added to the output with the Avg and Stdev per sample of certain columns in the CSV data.");
         config_group.add(&stat_cols_chck);
 
         let mut stat_cols_buf = TextBuffer::default();
@@ -236,8 +249,11 @@ impl GUI {
             .with_pos(stat_cols_chck.x(), stat_cols_chck.y() + stat_cols_chck.h() + cf_padding)
             .with_size(stat_cols_chck.w(), 75);
         stat_cols_box.set_buffer(stat_cols_buf.clone());
-        stat_cols_buf.set_text("Area\nLength\nWidth Thickness Ratio\nHue Brightness Saturation Red Green Blue");
+        stat_cols_buf.set_text("Area, Length, Width, Thickness, \nRatio, Mean Width, Volume, Weight\nLight, Hue, Saturation\nRed, Green, Blue");
         stat_cols_box.set_frame(cf_box_frame);
+        stat_cols_box.set_tooltip("Columns in CSV input to do statistics on. Separate values by a new line or comma. When separating by comma, include 1 or 0 spaces after the comma.");
+        stat_cols_box.set_scrollbar_align(Align::Right);
+        stat_cols_box.set_scrollbar_size(12);
         config_group.add_resizable(&stat_cols_box);
 
         let mut class_perc_chck = CheckButton::default()
@@ -246,6 +262,7 @@ impl GUI {
             .with_label("Outut Classification Percentages from CSV");
         class_perc_chck.set_checked(true);
         class_perc_chck.set_frame(cf_chck_frame);
+        class_perc_chck.set_tooltip("If checked, then columns will be added to the output giving the percentage of each sample of each possible classification. These percentages are calculated independently of any other classification fitlering.");
         config_group.add(&class_perc_chck);
 
         let mut xml_sieve_chck = CheckButton::default()
@@ -254,6 +271,7 @@ impl GUI {
             .with_label("Output XML Sieve Data if Found");
         xml_sieve_chck.set_checked(true);
         xml_sieve_chck.set_frame(cf_chck_frame);
+        xml_sieve_chck.set_tooltip("If checked, then columns will be added to the output giving sieve data for each sample. Since this data is only found in the xml file, columns will only be added if an xml input file is loaded.");
         config_group.add(&xml_sieve_chck);
 
         // set frame type for borders between sections, make sure to use box type
@@ -312,4 +330,34 @@ impl GUI {
     pub fn show_message(txt: &str) {
         dialog::message(0, 0, txt);
     }//end show_message(txt)
+
+    /// Creates a ConfigStore from the current config settins, as
+    /// chosen by the user.
+    pub fn get_config_store(&self) -> ConfigStore {
+        let class_filter_txt = self.ux_cf_class_filter_buf.text();
+        let stat_columns_txt = self.ux_cf_stat_cols_buf.text();
+        // replace multi-char instance we want to split with single chars, then split on '|', ',', or '\n', as needed
+        let class_filters: Vec<String> = class_filter_txt.replace(" | ", "|").replace(", ", ",").split(['|',',']).map(|el| el.to_owned()).collect();
+        let stat_columns: Vec<String> = stat_columns_txt.replace(", ", ",").split([',','\n']).map(|el| el.to_owned()).collect();
+
+        ConfigStore {
+            csv_class_filter_enabled: self.ux_cf_class_filter_chck.is_checked(),
+            csv_class_filter_filters: class_filters,
+            csv_stat_columns_enabled: self.ux_cf_stat_cols_chck.is_checked(),
+            csv_stat_columns_columns: stat_columns,
+            csv_class_percent_enabled: self.ux_cf_class_perc_chck.is_checked(),
+            xml_sieve_cols_enabled: self.ux_cf_xml_sieve_chck.is_checked(),
+        }//end struct construction
+    }//end get_config_store
+
+    /// Updates the current configuration widgets in the interface to match
+    /// the given ConfigStore.
+    pub fn set_config_store(&mut self, config: &ConfigStore) {
+        self.ux_cf_class_filter_chck.set_checked(config.csv_class_filter_enabled);
+        self.ux_cf_class_filter_buf.set_text(&config.csv_class_filter_filters.join("|"));
+        self.ux_cf_stat_cols_chck.set_checked(config.csv_stat_columns_enabled);
+        self.ux_cf_stat_cols_buf.set_text(&config.csv_stat_columns_columns.join("\n"));
+        self.ux_cf_class_perc_chck.set_checked(config.csv_class_percent_enabled);
+        self.ux_cf_xml_sieve_chck.set_checked(config.xml_sieve_cols_enabled);
+    }//end set_config_store(self, config)
 }//end impl for GUI
