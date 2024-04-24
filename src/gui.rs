@@ -2,8 +2,8 @@ use fltk::{app::{self, App, Receiver, Sender}, button::{Button, CheckButton}, di
 
 #[allow(dead_code)]
 pub struct GUI {
-    pub app: App,
-    pub ux_main_window: Window,
+    app: App,
+    ux_main_window: Window,
     msg_sender: Sender<String>,
     msg_receiver: Receiver<String>,
 }//end struct GUI
@@ -247,4 +247,9 @@ impl GUI {
         dialog.show();
         dialog.filename()
     }//end get_file_to_save()
+
+    /// Simply displays a message to the user.
+    pub fn show_message(txt: &str) {
+        dialog::message(0, 0, txt);
+    }//end show_message(txt)
 }//end impl for GUI
