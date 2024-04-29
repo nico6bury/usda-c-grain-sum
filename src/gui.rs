@@ -2,7 +2,7 @@ use std::{cell::RefCell, rc::Rc};
 
 use fltk::{app::{self, App, Receiver, Sender}, button::{Button, CheckButton}, dialog::{self}, enums::{Align, Event, FrameType}, frame::Frame, group::{Group, Tile}, prelude::{DisplayExt, GroupExt, WidgetBase, WidgetExt, WindowExt}, text::{TextBuffer, TextDisplay, TextEditor}, window::{self, Window}};
 
-use crate::config_store::ConfigStore;
+use usda_c_grain_sum::config_store::ConfigStore;
 
 #[allow(dead_code)]
 /// This struct represents a graphical user interface for the program.

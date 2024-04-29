@@ -1,10 +1,9 @@
 use std::path::PathBuf;
 
-use crate::{data::{Data, DataVal}, gui::GUI};
+use usda_c_grain_sum::data;
+use {usda_c_grain_sum::data::{Data, DataVal}, gui::GUI};
 
 mod gui;
-mod data;
-mod config_store;
 
 fn main() {
     // set up main application and window
