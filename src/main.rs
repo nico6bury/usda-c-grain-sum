@@ -96,7 +96,7 @@ fn main() {
 fn output_csv_sum(data: &Data, output_path: &PathBuf) {
     let base_data = data.get_records();
     // filter so that we only have Sound data
-    let sound_data = data::get_filtered_records(&base_data, 5, DataVal::String(String::from("Sound")));
+    let sound_data = data::get_filtered_records(&base_data, 5, DataVal::String(String::from("Sound"))).unwrap();
     // split data up based on reading in column 2, external-sample-id
     let split_data = data::get_split_records(&sound_data, 2).unwrap();
     println!("We split the data into {} groups.", split_data.len());
@@ -144,7 +144,7 @@ fn format_csv_sum(data: &Data) {
      */
     let base_data = data.get_records();
     // filter so that we only have Sound data
-    let sound_data = data::get_filtered_records(&base_data, 5, DataVal::String("Sound".to_string()));
+    let sound_data = data::get_filtered_records(&base_data, 5, DataVal::String("Sound".to_string())).unwrap();
     // split data up based on reading in column 2, external-sample-id
     let split_data = data::get_split_records(&sound_data, 2).unwrap();
     println!("We split the data into {} groups.", split_data.len());

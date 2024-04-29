@@ -2,19 +2,20 @@ use std::fs::File;
 
 use csv::Reader;
 
-#[derive(Clone, PartialEq, Debug)]
 /// Holds the value within a Cell, which might be a String, Int, or Float.
+#[derive(Clone, PartialEq, Debug)]
 pub enum DataVal{
     Int(i64),
     String(String),
     Float(f64),
 }//end enum ColumnType
 
-#[derive(Clone, PartialEq, Debug)]
 /// Represents an individual cell of data,
 /// holding a copy of the header it's under.  
 /// This struct is largely intended to be used by 
-/// DataRow and Data structs.
+/// DataRow and Data structs.  
+/// For more info, see documentation example for DataCell::new() and DataCell::new_from_val().
+#[derive(Clone, PartialEq, Debug)]
 pub struct DataCell {
     header: String,
     data: DataVal,
@@ -24,6 +25,33 @@ pub struct DataCell {
 impl DataCell {
     /// Constructs a new DataLine, automatically creating
     /// the proper DataVal by parsing and testing value.  
+    /// 
+    /// # Examples
+    /// 
+    /// ```
+    /// use usda_c_grain_sum::data::DataVal;
+    /// use usda_c_grain_sum::data::DataCell;
+    /// 
+    /// let header = String::from("Length");
+    /// let val_str = String::from("5.2");
+    /// 
+    /// let datacell = DataCell::new(&header, val_str);
+    /// 
+    /// assert_eq!(*datacell.get_data(), DataVal::Float(5.2));
+    /// ```
+    /// 
+    /// ```
+    /// use usda_c_grain_sum::data::DataVal;
+    /// use usda_c_grain_sum::data::DataCell;
+    /// 
+    /// let header = String::from("Red");
+    /// let val_str = String::from("55");
+    /// 
+    /// let datacell = DataCell::new(&header, val_str);
+    /// 
+    /// assert_eq!(*datacell.get_data(), DataVal::Int(55));
+    /// ```
+    /// 
     pub fn new(header: &String, value: String) -> DataCell {
         // test if value is int
         match value.parse::<i64>() {
@@ -53,17 +81,74 @@ impl DataCell {
         }//end matching if value is int
     }//end fn new()
 
+    /// Constructs a DataCell from a DataVal object without needing to do String parsing.
+    /// 
+    /// # Examples
+    /// 
+    /// ```
+    /// use usda_c_grain_sum::data::DataVal;
+    /// use usda_c_grain_sum::data::DataCell;
+    /// 
+    /// let header = String::from("Area");
+    /// let dataval = DataVal::Float(5.4);
+    /// 
+    /// let datacell = DataCell::new_from_val(&header, dataval.clone());
+    /// 
+    /// assert_eq!(*datacell.get_data(), dataval);
+    /// ```
+    pub fn new_from_val(header: &String, value: DataVal) -> DataCell {
+        DataCell {
+            header: header.to_owned(),
+            data: value,
+        }//end struct construction
+    }//end new_from_val(header, value)
+
     /// Gets reference to the header label of this cell.
     pub fn get_header(&self) -> &String {&self.header}
     /// Gets reference to the DataVal of this cell.
     pub fn get_data(&self) -> &DataVal {&self.data}
 }
 
-#[derive(Clone,PartialEq, Debug)]
+
 /// Represents a single row of data, with each cell in that row
 /// being represented by a DataCell.  
 /// Also holds a copy of the index of this Row in the larger Data struct.  
 /// This struct is largely meant to be constructed by Data.
+/// 
+/// # Examples
+/// 
+/// ```
+/// use usda_c_grain_sum::data::DataVal;
+/// use usda_c_grain_sum::data::DataCell;
+/// use usda_c_grain_sum::data::DataRow;
+/// 
+/// // create the column headers
+/// let header_0 = String::from("Area");
+/// let header_1 = String::from("Length");
+/// let header_2 = String::from("Width");
+/// let header_3 = String::from("Thickness");
+/// 
+/// // create the cells to go in the row
+/// let mut cell_vec: Vec<DataCell> = Vec::new();
+/// cell_vec.push(DataCell::new_from_val(&header_0, DataVal::Float(5.4)));
+/// cell_vec.push(DataCell::new_from_val(&header_1, DataVal::Float(3.7)));
+/// cell_vec.push(DataCell::new_from_val(&header_2, DataVal::Float(1.5)));
+/// cell_vec.push(DataCell::new_from_val(&header_3, DataVal::Float(1.3)));
+/// 
+/// // create the row itself
+/// let row_index = 0;
+/// let datarow = DataRow::new(row_index, cell_vec.clone());
+/// 
+/// // test the values
+/// assert_eq!(*datarow.get_row_idx(), 0);
+/// assert_eq!(*datarow.get_row_data(), cell_vec);
+/// assert_eq!(*datarow.get_data(0).unwrap().get_data(), DataVal::Float(5.4));
+/// assert_eq!(*datarow.get_data(1).unwrap().get_data(), DataVal::Float(3.7));
+/// assert_eq!(*datarow.get_data(2).unwrap().get_data(), DataVal::Float(1.5));
+/// assert_eq!(*datarow.get_data(3).unwrap().get_data(), DataVal::Float(1.3));
+/// assert_eq!(datarow.get_data(4), None);
+/// ```
+#[derive(Clone, PartialEq, Debug)]
 pub struct DataRow {
     row_idx: usize,
     row_data: Vec<DataCell>,
@@ -88,7 +173,6 @@ impl DataRow {
     pub fn get_data(&self, idx: usize) -> Option<&DataCell> {self.row_data.get(idx)}
 }//end impl for DataRow
 
-#[derive(Clone, PartialEq, Debug)]
 /// Holds all the data from one csv/xlsx file.  
 /// Uses something like "Parse, don't Validate" to ensure
 /// data is accurate to the file.  
@@ -97,6 +181,63 @@ impl DataRow {
 /// contained here instead of mutating the struct itself.  
 /// The component structs, DataRow and DataCell, also
 /// reflect this design.
+/// 
+/// # Examples
+/// 
+/// ```
+/// use usda_c_grain_sum::data::DataVal;
+/// use usda_c_grain_sum::data::DataCell;
+/// use usda_c_grain_sum::data::DataRow;
+/// use usda_c_grain_sum::data::Data;
+/// 
+/// // create the column headers
+/// let mut column_headers: Vec<String> = Vec::new();
+/// let header_0 = String::from("Length");
+/// let header_1 = String::from("Width");
+/// let header_2 = String::from("Thickness");
+/// column_headers.push(header_0.clone());
+/// column_headers.push(header_1.clone());
+/// column_headers.push(header_2.clone());
+/// 
+/// // create vectors of DataCells, to be made into DataRows
+/// let mut cell_row_0: Vec<DataCell> = Vec::new();
+/// cell_row_0.push(DataCell::new_from_val(&header_0, DataVal::Float(5.4)));
+/// cell_row_0.push(DataCell::new_from_val(&header_1, DataVal::Float(3.2)));
+/// cell_row_0.push(DataCell::new_from_val(&header_2, DataVal::Float(2.1)));
+/// let mut cell_row_1: Vec<DataCell> = Vec::new();
+/// cell_row_1.push(DataCell::new_from_val(&header_0, DataVal::Float(6.7)));
+/// cell_row_1.push(DataCell::new_from_val(&header_1, DataVal::Float(4.5)));
+/// cell_row_1.push(DataCell::new_from_val(&header_2, DataVal::Float(2.9)));
+/// 
+/// // construct the two DataRows and add them to a Vec
+/// let mut datarow_vec: Vec<DataRow> = Vec::new();
+/// let datarow_0 = DataRow::new(0, cell_row_0);
+/// let datarow_1 = DataRow::new(1, cell_row_1);
+/// datarow_vec.push(datarow_0);
+/// datarow_vec.push(datarow_1);
+/// 
+/// // construct the Data struct
+/// let data = Data::from_row_data(column_headers.clone(), datarow_vec.clone());
+/// 
+/// // test that headers are correct
+/// assert_eq!(*data.get_headers_ref(), column_headers);
+/// assert_eq!(data.get_header_index("Length").unwrap(), 0);
+/// assert_eq!(data.get_header_index("Width").unwrap(), 1);
+/// assert_eq!(data.get_header_index("Thickness").unwrap(), 2);
+/// assert_eq!(*data.get_header_from_index(0).unwrap(), header_0);
+/// assert_eq!(*data.get_header_from_index(1).unwrap(), header_1);
+/// assert_eq!(*data.get_header_from_index(2).unwrap(), header_2);
+/// 
+/// // test that records are correct
+/// assert_eq!(*data.get_records_ref(), datarow_vec);
+/// assert_eq!(*data.get_record(0,0).unwrap().get_data(), DataVal::Float(5.4));
+/// assert_eq!(*data.get_record(0,1).unwrap().get_data(), DataVal::Float(3.2));
+/// assert_eq!(*data.get_record(0,2).unwrap().get_data(), DataVal::Float(2.1));
+/// assert_eq!(*data.get_record(1,0).unwrap().get_data(), DataVal::Float(6.7));
+/// assert_eq!(*data.get_record(1,1).unwrap().get_data(), DataVal::Float(4.5));
+/// assert_eq!(*data.get_record(1,2).unwrap().get_data(), DataVal::Float(2.9));
+/// ```
+#[derive(Clone, PartialEq, Debug)]
 pub struct Data {
     headers: Vec<String>,
     records: Vec<DataRow>,
@@ -141,6 +282,16 @@ impl Data {
         } else { return None; }
     }//end from_csv_reader()
 
+    /// Constructs a Data struct from a vector of headers and DataRows.
+    /// 
+    /// 
+    pub fn from_row_data(headers: Vec<String>, row_data: Vec<DataRow>) -> Data {
+        Data {
+            headers,
+            records: row_data,
+        }//end struct construction
+    }//end from_row_data(headers, row_data)
+
     /// Returns vector of references to headers in struct.
     pub fn get_headers(&self) -> Vec<&String> {
         let mut ref_vec = Vec::new();
@@ -184,7 +335,62 @@ impl Data {
 /// So, for example, if a sample id has header index 0, and you have sample ids
 /// of [1,2,3], then calling this function with col_splt_idx of 0 would give
 /// a Vec of data rows which sample id 1, a Vec of with only sample id 2, etc.
-pub fn get_split_records<'a>(records: &'a Vec<&'a DataRow>, col_splt_idx: usize) -> Option<Vec<(&'a DataVal, Vec<&'a DataRow>)>> {
+/// 
+/// # Errors
+/// 
+/// This function will return Err() if it cannot get a DataCell at some index.  
+/// The Err String will contain information on which DataCell couldn't be accessed.
+/// 
+/// # Examples
+/// 
+/// ```
+/// use usda_c_grain_sum::data::DataVal;
+/// use usda_c_grain_sum::data::DataCell;
+/// use usda_c_grain_sum::data::DataRow;
+/// use usda_c_grain_sum::data::Data;
+/// use usda_c_grain_sum::data::get_split_records;
+/// 
+/// // set up headers
+/// let mut column_headers: Vec<String> = Vec::new();
+/// let header_0 = String::from("Class");
+/// let header_1 = String::from("Volume");
+/// column_headers.push(header_0.clone());
+/// column_headers.push(header_1.clone());
+/// 
+/// // set up rows of DataCells
+/// let mut cell_row_0: Vec<DataCell> = Vec::new();
+/// let mut cell_row_1: Vec<DataCell> = Vec::new();
+/// let mut cell_row_2: Vec<DataCell> = Vec::new();
+/// cell_row_0.push(DataCell::new_from_val(&header_0, DataVal::String("Sorghum".to_string())));
+/// cell_row_0.push(DataCell::new_from_val(&header_1, DataVal::Float(3.2)));
+/// cell_row_1.push(DataCell::new_from_val(&header_0, DataVal::String("Sound".to_string())));
+/// cell_row_1.push(DataCell::new_from_val(&header_1, DataVal::Float(6.7)));
+/// cell_row_2.push(DataCell::new_from_val(&header_0, DataVal::String("Sorghum".to_string())));
+/// cell_row_2.push(DataCell::new_from_val(&header_1, DataVal::Float(2.9)));
+/// 
+/// // set up DataRows and add them to vec
+/// let mut datarow_vec: Vec<DataRow> = Vec::new();
+/// let datarow_0 = DataRow::new(0, cell_row_0);
+/// let datarow_1 = DataRow::new(1, cell_row_1);
+/// let datarow_2 = DataRow::new(2, cell_row_2);
+/// datarow_vec.push(datarow_0.clone());
+/// datarow_vec.push(datarow_1.clone());
+/// datarow_vec.push(datarow_2.clone());
+/// 
+/// // create the Data struct from everything
+/// let data = Data::from_row_data(column_headers, datarow_vec);
+/// 
+/// let base_records: Vec<&DataRow> = data.get_records();
+/// let class_split_records = get_split_records(&base_records, 0).unwrap();
+/// let class_split_records_first: &(&DataVal, Vec<&DataRow>) = class_split_records.get(0).unwrap();
+/// let class_split_records_second: &(&DataVal, Vec<&DataRow>) = class_split_records.get(1).unwrap();
+/// 
+/// assert_eq!(*class_split_records_first.0, DataVal::String("Sorghum".to_string()));
+/// assert_eq!(class_split_records_first.1.len(), 2);
+/// assert_eq!(*class_split_records_second.0, DataVal::String("Sound".to_string()));
+/// assert_eq!(class_split_records_second.1.len(), 1);
+/// ```
+pub fn get_split_records<'a>(records: &'a Vec<&'a DataRow>, col_splt_idx: usize) -> Result<Vec<(&'a DataVal, Vec<&'a DataRow>)>, String> {
     let mut wrapping_vec: Vec<(&DataVal, Vec<&DataRow>)> = Vec::new();
     for record in records {
         if let Some(this_data_at_col) = record.get_data(col_splt_idx) {
@@ -202,34 +408,150 @@ pub fn get_split_records<'a>(records: &'a Vec<&'a DataRow>, col_splt_idx: usize)
                 new_row_group.push(record);
                 wrapping_vec.push((this_data_val, new_row_group));
             }//end if we need to add another group to wrapping vec
-        } else {println!("Couldn't get data at col idx {} for row data {:?}", col_splt_idx, record.get_row_data())}
+        } else { return Err(format!("Couldn't get DataCell at col idx {} and row idx {} for row data {:?}", col_splt_idx, record.get_row_idx(), record.get_row_data())); }
     }//end looping over all records
 
-    Some(wrapping_vec)
+    return Ok(wrapping_vec);
 }//end get_split_records()
 
-/// This function returns a Vector only containing DataRows whose value at column col_idx is equal to the expected.
-/// The intended purpose of this function is to return rows belonging to a particular category. For example, if
-/// you have a column 2 with header type, you might want to get rows with a type matching Sound. 
-pub fn get_filtered_records<'a>(records: &'a Vec<&'a DataRow>, col_idx: usize, expected: DataVal) -> Vec<&'a DataRow> {
+/// This function returns a Vector only containing DataRows 
+/// whose value at column col_idx is equal to the expected.  
+/// The intended purpose of this function is to return rows 
+/// belonging to a particular category.  
+/// For example, if you have a column 2 with header type, you 
+/// might want to get rows with a type matching Sound.  
+/// Notably, this function does not change the values of 
+/// any DataRows or clone anything.  
+/// Instead, the function reorganizes a list of references 
+/// by returning a new list that only contains references 
+/// to DataRows with the specified DataVal.  
+/// 
+/// # Errors
+/// 
+/// If the given column index is invalid, this function will 
+/// return an error.
+/// An error will also be returned if the function cannot access a 
+/// particular row for some reason.
+/// 
+/// # Examples
+/// 
+/// ```
+/// use usda_c_grain_sum::data::DataVal;
+/// use usda_c_grain_sum::data::DataCell;
+/// use usda_c_grain_sum::data::DataRow;
+/// use usda_c_grain_sum::data::Data;
+/// use usda_c_grain_sum::data::get_filtered_records;
+/// 
+/// // set up headers
+/// let mut column_headers: Vec<String> = Vec::new();
+/// let header_0 = String::from("Length");
+/// let header_1 = String::from("Width");
+/// let header_2 = String::from("Thickness");
+/// column_headers.push(header_0.clone());
+/// column_headers.push(header_1.clone());
+/// column_headers.push(header_2.clone());
+/// 
+/// // set up rows of DataCells
+/// let mut cell_row_0: Vec<DataCell> = Vec::new();
+/// let mut cell_row_1: Vec<DataCell> = Vec::new();
+/// cell_row_0.push(DataCell::new_from_val(&header_0, DataVal::Float(5.4)));
+/// cell_row_0.push(DataCell::new_from_val(&header_1, DataVal::Float(3.2)));
+/// cell_row_0.push(DataCell::new_from_val(&header_2, DataVal::Float(2.1)));
+/// cell_row_1.push(DataCell::new_from_val(&header_0, DataVal::Float(6.7)));
+/// cell_row_1.push(DataCell::new_from_val(&header_1, DataVal::Float(4.5)));
+/// cell_row_1.push(DataCell::new_from_val(&header_2, DataVal::Float(2.9)));
+/// 
+/// // set up DataRows and add them to vec
+/// let mut datarow_vec: Vec<DataRow> = Vec::new();
+/// let datarow_0 = DataRow::new(0, cell_row_0);
+/// let datarow_1 = DataRow::new(1, cell_row_1);
+/// datarow_vec.push(datarow_0.clone());
+/// datarow_vec.push(datarow_1.clone());
+/// 
+/// // create the Data struct from everything
+/// let data = Data::from_row_data(column_headers, datarow_vec);
+/// 
+/// assert_eq!(data.get_records().len(), 2);
+/// 
+/// let data_records: Vec<&DataRow> = data.get_records();
+/// let length_5_4_filtered = get_filtered_records(&data_records, 0, DataVal::Float(5.4)).unwrap();
+/// 
+/// assert_eq!(length_5_4_filtered.len(), 1);
+/// 
+/// let first_row_first_col_data_cell: &DataCell = length_5_4_filtered
+///     .first().unwrap() // get first (and only) DataRow from Vec
+///     .get_data(0).unwrap(); // get first DataCell from first DataRow
+/// 
+/// assert_eq!(*first_row_first_col_data_cell.get_data(), DataVal::Float(5.4));
+/// ```
+/// 
+pub fn get_filtered_records<'a>(records: &'a Vec<&'a DataRow>, col_idx: usize, expected: DataVal) -> Result<Vec<&'a DataRow>, String> {
     let mut filtered_vec: Vec<&DataRow> = Vec::new();
 
     for row in records {
-        if let Some(data_cell) = row.get_data(col_idx) {
-            // make sure data cell is equal to expected
-            if expected == *data_cell.get_data() {
-                filtered_vec.push(row);
-            }//end if this row matches the filter
-        } else {println!("Couldn't get data at col idx {} for row data {:?}", col_idx, row.get_row_data())}
+        match row.get_data(col_idx) {
+            Some(data_cell) => {
+                // make sure data cell is equal to expected
+                if expected == *data_cell.get_data() {
+                    filtered_vec.push(row);
+                }//end if this row matches the filter
+            } None => return Err(format!("Couldn't get DataCell at col idx {} and row idx {} for row data {:?}, ", col_idx, row.get_row_idx(), row.get_row_data())),
+        }//end matching whether we could access row data at col_idx
     }//end looping over each row
 
-    filtered_vec
+    Ok(filtered_vec)
 }//end get_filtered_records()
 
 /// Gets information on sum and counts of different data types within columns.
 /// This is formatted as (sum_info, count_info).
 /// sum_info contains the sum of ints and sum of floats.
 /// count_info contains the number of ints, floats, and strings.
+/// 
+/// # Examples
+/// 
+/// ```
+/// use usda_c_grain_sum::data::DataVal;
+/// use usda_c_grain_sum::data::DataCell;
+/// use usda_c_grain_sum::data::DataRow;
+/// use usda_c_grain_sum::data::Data;
+/// use usda_c_grain_sum::data::get_sum_count;
+/// 
+/// // set up headers
+/// let mut column_headers: Vec<String> = Vec::new();
+/// let header_0 = String::from("Class");
+/// let header_1 = String::from("Area");
+/// let header_2 = String::from("Red");
+/// column_headers.push(header_0.clone());
+/// column_headers.push(header_1.clone());
+/// column_headers.push(header_2.clone());
+/// 
+/// // set up rows of DataCells
+/// let mut cell_row_0: Vec<DataCell> = Vec::new();
+/// let mut cell_row_1: Vec<DataCell> = Vec::new();
+/// cell_row_0.push(DataCell::new_from_val(&header_0, DataVal::String("Sound".to_string())));
+/// cell_row_0.push(DataCell::new_from_val(&header_1, DataVal::Float(7.8)));
+/// cell_row_0.push(DataCell::new_from_val(&header_2, DataVal::Int(55)));
+/// cell_row_1.push(DataCell::new_from_val(&header_0, DataVal::String("Sound".to_string())));
+/// cell_row_1.push(DataCell::new_from_val(&header_1, DataVal::Float(5.6)));
+/// cell_row_1.push(DataCell::new_from_val(&header_2, DataVal::Int(60)));
+/// 
+/// // set up DataRows and add them to vec
+/// let mut datarow_vec: Vec<DataRow> = Vec::new();
+/// let datarow_0 = DataRow::new(0, cell_row_0);
+/// let datarow_1 = DataRow::new(1, cell_row_1);
+/// datarow_vec.push(datarow_0.clone());
+/// datarow_vec.push(datarow_1.clone());
+/// 
+/// // create the data struct from everything
+/// let data = Data::from_row_data(column_headers, datarow_vec);
+/// 
+/// let base_records = data.get_records();
+/// let class_sum_count = get_sum_count(&base_records, 0);
+/// // test string count
+/// assert_eq!(class_sum_count, ((0,0.0),(0,0.0,2))); // two strs, none else
+/// let area_sum_count = get_sum_count(&base_records, 1);
+/// // TODO: Add tests after refactor
+/// ```
 pub fn get_sum_count(records: &Vec<&DataRow>, col_idx: usize) -> ((i64,f64),(i64,f64,usize)) {
     let mut running_sums: (i64, f64) = (0,0.0);
     // int, float, string
