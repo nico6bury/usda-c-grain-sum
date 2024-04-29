@@ -3,6 +3,7 @@ use std::fs::File;
 use csv::Reader;
 
 #[derive(Clone, PartialEq, Debug)]
+/// Holds the value within a Cell, which might be a String, Int, or Float.
 pub enum DataVal{
     Int(i64),
     String(String),
@@ -10,6 +11,10 @@ pub enum DataVal{
 }//end enum ColumnType
 
 #[derive(Clone, PartialEq, Debug)]
+/// Represents an individual cell of data,
+/// holding a copy of the header it's under.  
+/// This struct is largely intended to be used by 
+/// DataRow and Data structs.
 pub struct DataCell {
     header: String,
     data: DataVal,
@@ -17,7 +22,8 @@ pub struct DataCell {
 
 #[allow(dead_code)]
 impl DataCell {
-    /// Constructs a new DataLine
+    /// Constructs a new DataLine, automatically creating
+    /// the proper DataVal by parsing and testing value.  
     pub fn new(header: &String, value: String) -> DataCell {
         // test if value is int
         match value.parse::<i64>() {
@@ -47,11 +53,17 @@ impl DataCell {
         }//end matching if value is int
     }//end fn new()
 
+    /// Gets reference to the header label of this cell.
     pub fn get_header(&self) -> &String {&self.header}
+    /// Gets reference to the DataVal of this cell.
     pub fn get_data(&self) -> &DataVal {&self.data}
 }
 
 #[derive(Clone,PartialEq, Debug)]
+/// Represents a single row of data, with each cell in that row
+/// being represented by a DataCell.  
+/// Also holds a copy of the index of this Row in the larger Data struct.  
+/// This struct is largely meant to be constructed by Data.
 pub struct DataRow {
     row_idx: usize,
     row_data: Vec<DataCell>,
@@ -59,6 +71,7 @@ pub struct DataRow {
 
 #[allow(dead_code)]
 impl DataRow {
+    /// Constructs a new DataRow
     pub fn new(row_idx: usize, row_data: Vec<DataCell>) -> DataRow {
         DataRow {
             row_idx,
@@ -66,12 +79,24 @@ impl DataRow {
         }//end struct construction
     }//end new()
 
+    /// Gets reference to row index in of this DataRow.
     pub fn get_row_idx(&self) -> &usize {&self.row_idx}
+    /// Gets Reference to the vector of DataCells contained in this struct.
     pub fn get_row_data(&self) -> &Vec<DataCell> {&self.row_data}
+    /// Returns a reference to the particular DataCell if the index is valid.  
+    /// If the index is out of bounds, returns None.
     pub fn get_data(&self, idx: usize) -> Option<&DataCell> {self.row_data.get(idx)}
 }//end impl for DataRow
 
 #[derive(Clone, PartialEq, Debug)]
+/// Holds all the data from one csv/xlsx file.  
+/// Uses something like "Parse, don't Validate" to ensure
+/// data is accurate to the file.  
+/// Because of this, it is intended for processing functions to 
+/// run filters and processing on references to the records 
+/// contained here instead of mutating the struct itself.  
+/// The component structs, DataRow and DataCell, also
+/// reflect this design.
 pub struct Data {
     headers: Vec<String>,
     records: Vec<DataRow>,
@@ -116,18 +141,38 @@ impl Data {
         } else { return None; }
     }//end from_csv_reader()
 
+    /// Returns vector of references to headers in struct.
     pub fn get_headers(&self) -> Vec<&String> {
         let mut ref_vec = Vec::new();
         for header in &self.headers {ref_vec.push(header)}
         ref_vec
     }//end get_headers()
+    /// Returns reference to vector containing list of headers.
     pub fn get_headers_ref(&self) -> &Vec<String> {&self.headers}
+    /// Finds the first index of the header specified.  
+    /// If the header is not found, returns None.
+    pub fn get_header_index(&self, target_header: &str) -> Option<usize> {
+        for (i, header) in self.headers.iter().enumerate() {
+            if header.eq(target_header) {
+                return Some(i);
+            }//end if we found a match
+        }//end checking headers for match to header
+        return None;
+    }//end get_header_index(self, target_header)
+    /// Gets the header at the specified index, if that index exists.  
+    /// If the index is out of bounds, returns None.
+    pub fn get_header_from_index(&self, index: usize) -> Option<&String> { self.headers.get(index) }
+    /// Gets vector of references to DataRows in this struct.
     pub fn get_records(&self) -> Vec<&DataRow> {
         let mut ref_vec = Vec::new();
         for data_row in &self.records {ref_vec.push(data_row);}
         ref_vec
     }//end get_records()
+    /// Gets a reference to the vector of DataRows in this struct.
     pub fn get_records_ref(&self) -> &Vec<DataRow> {&self.records}
+    /// Gets a specific record at a given row and column index, returning 
+    /// a reference to the DataCell there if the bounds are valid.  
+    /// If the row or column index are not valid, returns None
     pub fn get_record(&self, row_idx: usize, col_idx: usize) -> Option<&DataCell> {
         if let Some(data_row) = self.records.get(row_idx) {
             data_row.get_data(col_idx)
