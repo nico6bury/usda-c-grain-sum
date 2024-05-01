@@ -546,13 +546,14 @@ pub fn get_filtered_records<'a>(records: &'a Vec<&'a DataRow>, col_idx: usize, e
 /// let data = Data::from_row_data(column_headers, datarow_vec);
 /// 
 /// let base_records = data.get_records();
-/// let class_sum_count = get_sum_count(&base_records, 0);
 /// // test string count
+/// let class_sum_count = get_sum_count(&base_records, 0).unwrap();
 /// assert_eq!(class_sum_count, ((0,0.0),(0,0.0,2))); // two strs, none else
-/// let area_sum_count = get_sum_count(&base_records, 1);
-/// // TODO: Add tests after refactor
+/// // test int count and sum
+/// let red_sum_count = get_sum_count(&base_records, 2).unwrap();
+/// assert_eq!(red_sum_count, ((115,0.0),(2,0.0,0)))
 /// ```
-pub fn get_sum_count(records: &Vec<&DataRow>, col_idx: usize) -> ((i64,f64),(i64,f64,usize)) {
+pub fn get_sum_count(records: &Vec<&DataRow>, col_idx: usize) -> Result<((i64,f64),(i64,f64,usize)), String> {
     let mut running_sums: (i64, f64) = (0,0.0);
     // int, float, string
     let mut running_counts: (i64, f64, usize) = (0,0.0,0);
@@ -563,24 +564,101 @@ pub fn get_sum_count(records: &Vec<&DataRow>, col_idx: usize) -> ((i64,f64),(i64
                 DataVal::Float(f) => {running_sums.1 += f; running_counts.1 += 1.0;},
                 DataVal::String(_) => {running_counts.2 += 1;},
             }//end matching type of cell data
-        } else {println!("Couldn't get data at col idx {} for row data {:?}", col_idx, row.get_row_data())}
+        } else { return Err(format!("Couldn't get data at col idx {} for row data {:?}", col_idx, row.get_row_data())); }
     }//end looping over each row
-    (running_sums, running_counts)
+    return Ok((running_sums, running_counts));
 }//end get_sum_count
 
 /// Gets the average value from a single column of the grid made up of DataRows.
-/// Returns avg of integer values found, number of strings found, and avg of floats found 
-pub fn get_col_avg(records: &Vec<&DataRow>, col_idx: usize) -> (f64, f64, usize) {
-    let (sum_info, count_info) = get_sum_count(records, col_idx);
-    let int_avg; if count_info.0 != 0 {
-        int_avg = sum_info.0 as f64 / count_info.0 as f64;
-    } else {int_avg = 0.0;}
-    let flt_avg; if count_info.1 != 0.0 {
-        flt_avg = sum_info.1 / count_info.1;
-    } else {flt_avg = 0.0;}
-
-    (int_avg, flt_avg, count_info.2)
+/// Returns avg of integer values found, number of strings found, and avg of floats found.
+/// This is ordered as int, float, string in the output.
+/// 
+/// # Examples
+/// 
+/// ```
+/// use usda_c_grain_sum::data::DataVal;
+/// use usda_c_grain_sum::data::DataCell;
+/// use usda_c_grain_sum::data::DataRow;
+/// use usda_c_grain_sum::data::Data;
+/// use usda_c_grain_sum::data::get_sum_count;
+/// use usda_c_grain_sum::data::get_col_avg;
+/// 
+/// // set up headers
+/// let mut column_headers: Vec<String> = Vec::new();
+/// let header_0 = String::from("Area");
+/// column_headers.push(header_0.clone());
+/// 
+/// // set up rows of DataCells
+/// let mut cell_row_0: Vec<DataCell> = Vec::new();
+/// let mut cell_row_1: Vec<DataCell> = Vec::new();
+/// let mut cell_row_2: Vec<DataCell> = Vec::new();
+/// let mut cell_row_3: Vec<DataCell> = Vec::new();
+/// 
+/// cell_row_0.push(DataCell::new_from_val(&header_0, DataVal::Float(5.6)));
+/// cell_row_1.push(DataCell::new_from_val(&header_0, DataVal::Float(7.8)));
+/// cell_row_2.push(DataCell::new_from_val(&header_0, DataVal::Int(7)));
+/// cell_row_3.push(DataCell::new_from_val(&header_0, DataVal::Int(5)));
+/// 
+/// // set up DataRows and add them to vec
+/// let mut datarow_vec: Vec<DataRow> = Vec::new();
+/// let datarow_0 = DataRow::new(0, cell_row_0);
+/// let datarow_1 = DataRow::new(1, cell_row_1);
+/// let datarow_2 = DataRow::new(2, cell_row_2);
+/// let datarow_3 = DataRow::new(3, cell_row_3);
+/// datarow_vec.push(datarow_0);
+/// datarow_vec.push(datarow_1);
+/// datarow_vec.push(datarow_2);
+/// datarow_vec.push(datarow_3);
+/// 
+/// // create the data struct from everything
+/// let data = Data::from_row_data(column_headers, datarow_vec);
+/// 
+/// let base_records = data.get_records();
+/// let avg_info = get_col_avg(&base_records, 0).unwrap();
+/// // test average for ints
+/// assert_eq!(avg_info.0, 6.0);
+/// // test average for floats
+/// let float_diff = (avg_info.1 - 6.7).abs();
+/// assert!(float_diff < 0.000001);
+/// // test count for strs
+/// assert_eq!(avg_info.2, 0);
+/// ```
+pub fn get_col_avg(records: &Vec<&DataRow>, col_idx: usize) -> Result<(f64, f64, usize), String> {
+    match get_sum_count(records, col_idx) {
+        Ok((sum_info, count_info)) => {
+            let int_avg; if count_info.0 != 0 {
+                int_avg = sum_info.0 as f64 / count_info.0 as f64;
+            } else {int_avg = 0.0;}
+            let flt_avg; if count_info.1 != 0.0 {
+                flt_avg = sum_info.1 / count_info.1;
+            } else {flt_avg = 0.0;}
+        
+            return Ok((int_avg, flt_avg, count_info.2));
+        },
+        Err(msg) => return Err(format!("While attempting to get sum and count, we encountered an error:\n{}", msg)),
+    }//end matching whether we could get sum and count
 }//end get_col_avg
+
+/// Gets the average value from a single column of the grid made up of DataRows.  
+/// Will combine all integer and float values found into a single average.  
+/// If the count of floats and ints is 0 or less, thsi function will return 0.  
+/// If the col_idx provided is invalid for records, this function will return an Err.
+pub fn get_col_avg_sngl(records: &Vec<&DataRow>, col_idx: usize) -> Result<f64, String> {
+    // make sure that col_idx is valid
+    if col_idx >= records.len() { return Err(format!("The column index {} is not valid for records, which has length {}.", col_idx, records.len())); }
+    match get_sum_count(records, col_idx) {
+        Ok((sum_info, count_info)) => {
+            // get sum and count for everything
+            let sum_combined: f64 = sum_info.0 as f64 + sum_info.1;
+            let count_combined: f64 = count_info.0 as f64 + count_info.1;
+            if count_combined >= 0.0 {
+                let avg_combined = sum_combined / count_combined;
+                return Ok(avg_combined);
+            } else { return Ok(0.0); }
+        },
+        Err(msg) => return Err(format!("While trying to get sum and count, we encountered an error:\n{}", msg)),
+    }//end matching whether we could get sum and count
+}//end get_col_avg_sngl
 
 // TODO: Rework avg and stdev to return one number for all integers or floats found
 
@@ -588,34 +666,82 @@ pub fn get_col_avg(records: &Vec<&DataRow>, col_idx: usize) -> (f64, f64, usize)
 /// We don't assume that every row in that column has same type, so we return
 /// the stdev of all integers found, stdev of all floats found, and the number
 /// of strings found.
-pub fn get_col_stdev(records: &Vec<&DataRow>, col_idx: usize) -> (f64,f64,usize) {
-    let (_, count_info) = get_sum_count(records, col_idx);
-    let avg_info = get_col_avg(records, col_idx);
-    let mut running_sq_diff_sum: (f64, f64) = (0.0, 0.0);
-    for row in records {
-        if let Some(this_cell_at_col) = row.get_data(col_idx) {
-            match &this_cell_at_col.data {
-                DataVal::Int(i) => {
-                    let mean_diff = *i as f64 - avg_info.0;
-                    let sq_mean_diff = mean_diff.powf(2.0);
-                    running_sq_diff_sum.0 += sq_mean_diff;
+pub fn get_col_stdev(records: &Vec<&DataRow>, col_idx: usize) -> Result<(f64,f64,usize), String> {
+    match get_sum_count(records, col_idx) {
+        Ok((_, count_info)) => {
+            match get_col_avg(records, col_idx) {
+                Ok(avg_info) => {
+                    let mut running_sq_diff_sum: (f64, f64) = (0.0, 0.0);
+                    for row in records {
+                        if let Some(this_cell_at_col) = row.get_data(col_idx) {
+                            match &this_cell_at_col.data {
+                                DataVal::Int(i) => {
+                                    let mean_diff = *i as f64 - avg_info.0;
+                                    let sq_mean_diff = mean_diff.powf(2.0);
+                                    running_sq_diff_sum.0 += sq_mean_diff;
+                                },
+                                DataVal::Float(f) => {
+                                    let mean_diff = f - avg_info.1;
+                                    let sq_mean_diff = mean_diff.powf(2.0);
+                                    running_sq_diff_sum.1 += sq_mean_diff;
+                                },
+                                DataVal::String(_) => {},
+                            }//end matching based on cell data type
+                        } else {println!("Couldn't get data at col idx {} for row data {:?}", col_idx, row.get_row_data())}
+                    }//end looping over each row
+                
+                    let mut variance_info: (f64, f64) = (0.0, 0.0);
+                    if count_info.0 != 0 { variance_info.0 =  running_sq_diff_sum.0 / count_info.0 as f64; }
+                    if count_info.1 != 0.0 { variance_info.1 = running_sq_diff_sum.1 / count_info.1 as f64; }
+                
+                    let int_stdev = variance_info.0.sqrt();
+                    let flt_stdev = variance_info.1.sqrt();
+                
+                    return Ok((int_stdev, flt_stdev, count_info.2));
                 },
-                DataVal::Float(f) => {
-                    let mean_diff = f - avg_info.1;
-                    let sq_mean_diff = mean_diff.powf(2.0);
-                    running_sq_diff_sum.1 += sq_mean_diff;
-                },
-                DataVal::String(_) => {},
-            }//end matching based on cell data type
-        } else {println!("Couldn't get data at col idx {} for row data {:?}", col_idx, row.get_row_data())}
-    }//end looping over each row
-
-    let mut variance_info: (f64, f64) = (0.0, 0.0);
-    if count_info.0 != 0 { variance_info.0 =  running_sq_diff_sum.0 / count_info.0 as f64; }
-    if count_info.1 != 0.0 { variance_info.1 = running_sq_diff_sum.1 / count_info.1 as f64; }
-
-    let int_stdev = variance_info.0.sqrt();
-    let flt_stdev = variance_info.1.sqrt();
-
-    (int_stdev, flt_stdev, count_info.2)
+                Err(msg) => return Err(format!("While trying to get averages, encountered an error:\n{}", msg)),
+            }//end matching whether we can get averages
+        },
+        Err(msg) => return Err(format!("While trying to get sum and count, we encountered an error:\n{}", msg)),
+    }//end matching whether we can get sum and count
 }//end get_col_stdev
+
+/// Gets standard deviation from a single column.  
+/// Will combine all integers and floats together, returning the stdev of the whole column.  
+/// An error will be returned in any of the following cases:
+/// - A string is encountered as a record
+/// - The column index provided is invalid for the records provided
+/// - The count of all numbers among the records is 0
+/// 
+pub fn get_col_stdev_sngl(records: &Vec<&DataRow>, col_idx: usize) -> Result<f64, String> {
+    match get_sum_count(records, col_idx) {
+        Ok((_, count_info)) => {
+            let full_count: f64 = count_info.0 as f64 + count_info.1;
+            match get_col_avg_sngl(records, col_idx) {
+                Ok(avg) => {
+                    let mut running_sq_diff_sum: f64 = 0.0;
+                    for row in records {
+                        if let Some(this_cell_at_col) = row.get_data(col_idx) {
+                            let val_at_cell = match &this_cell_at_col.data {
+                                DataVal::Int(i) => *i as f64,
+                                DataVal::Float(f) => *f,
+                                DataVal::String(s) => return Err(format!("Encountered a string where there should be a number. Row idx {}, col idx {}. Data in cell is {}", row.get_row_idx(), col_idx, s)),
+                            };//end matching based on cell data type
+                            let mean_diff = val_at_cell - avg;
+                            let sq_mean_diff = mean_diff.powf(2.0);
+                            running_sq_diff_sum += sq_mean_diff;
+                        } else { return Err(format!("Couldn't get data at col idx {} and row idx {}. Row data is {:?}", col_idx, row.get_row_idx(), row.get_row_data())); }
+                    }//end adding sq diff of each row
+
+                    if full_count > 0.0 {
+                        let variance = running_sq_diff_sum / full_count;
+                        let stdev = variance.sqrt();
+                        return Ok(stdev);
+                    } else { return Err(format!("We couldn't do calculations because the count, {}, was 0 or less.", full_count)); }
+                },
+                Err(msg) => return Err(format!("While trying to get average, we encountered an error:\n{}", msg)),
+            }//end matching whether we can get average
+        },
+        Err(msg) => return Err(format!("While trying to get sum and count, we encountered an error:\n{}", msg)),
+    }//end matching whether we could get sum and count
+}//end get_col_stdev_sngl()

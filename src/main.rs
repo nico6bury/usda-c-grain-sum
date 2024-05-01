@@ -122,8 +122,8 @@ fn output_csv_sum(data: &Data, output_path: &PathBuf) {
         }//end matching type and printing sample id
         // loop through column indices 11-24
         for col_idx in 11..=24 {
-            let avgs = data::get_col_avg(&records, col_idx);
-            let stdevs = data::get_col_stdev(&records, col_idx);
+            let avgs = data::get_col_avg(&records, col_idx).unwrap();
+            let stdevs = data::get_col_stdev(&records, col_idx).unwrap();
             writer.write_field(format!("{:.2}", avgs.1)).unwrap();
             writer.write_field(format!("{:.2}", stdevs.1)).unwrap();
         }//end looping through column indices 11-24
@@ -165,8 +165,8 @@ fn format_csv_sum(data: &Data) {
         }//end printing out sample id
         // loop through column indices 11-24
         for col_idx in 11..=24 {
-            let avgs = data::get_col_avg(&records, col_idx);
-            let stdevs = data::get_col_stdev(&records, col_idx);
+            let avgs = data::get_col_avg(&records, col_idx).unwrap();
+            let stdevs = data::get_col_stdev(&records, col_idx).unwrap();
             print!("{:.2}\t{:.2}\t", avgs.1, stdevs.1);
         }//end looping over column indices 11-24
         print!("\n");
