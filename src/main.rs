@@ -18,6 +18,7 @@ fn main() {
 
     let recv = gui.get_receiver();
     let mut input_data = None;
+    let mut csv_input_file = None;
     let mut output_file = None;
 
     while gui.wait() {
@@ -43,6 +44,7 @@ fn main() {
                                         let data = Data::from_csv_reader(reader).unwrap();
                                         println!("We finished reading {} records from the csv", data.get_records().len());
                                         input_data = Some(data);
+                                        csv_input_file = Some(path_buf);
                                         // format_csv_sum(&data);
                                     },
                                     Err(_) => GUI::show_message("Couldn't get csv reader."),
@@ -76,19 +78,43 @@ fn main() {
                         "Sum" => {
                             match &input_data {
                                 Some(input) => {
-                                    match &output_file {
+                                    // make sure user entered output file affects processing
+                                    let output_txt = gui.get_output_text();
+                                    if output_txt != "" && output_file.is_none() {
+                                        let input_stem = match csv_input_file {
+                                            Some(ref pathbuf) => match pathbuf.parent() {
+                                                Some(stem) => match stem.to_str() {
+                                                    Some(str) => str,
+                                                    None => "", }, None => "", }, None => "",
+                                        };
+                                        if input_stem != "" {
+                                            let mut output_pathbuf = PathBuf::new();
+                                            output_pathbuf.push(input_stem);
+                                            output_pathbuf.push(output_txt.clone());
+                                            output_pathbuf.set_extension("xlsx");
+                                            if !output_pathbuf.exists() || GUI::show_yes_no_message("The output file you specified already exists.\nAre you sure you want to replace it?") {
+                                                output_file = Some(output_pathbuf);
+                                            }//end if file doesn't exist OR user is fine with overwriting it
+                                        }//end if we got the input file stem
+                                    }//end if we need to update output file name from user entered text
+                                    match &mut output_file {
                                         Some(output) => {
                                             gui.start_wait();
+                                            output.set_file_name(gui.get_output_text());
+                                            output.set_extension("xlsx");
                                             println!("Started processing and outputing file.");
                                             // output_csv_sum(input, output);
                                             let config = gui.get_config_store();
                                             if let Err(msg) = output_excel_sum(input, output, config) {
                                                 GUI::show_message(&format!("Encountered errors while processing:\n{}", msg));
                                             } else {
+                                                println!("Finished outputing processed file.");
+                                                gui.clear_output_text();
+                                                if GUI::show_yes_no_message("Processing complete. Would you like to open the folder where the output file is located?") {
+                                                    opener::reveal(output).unwrap();
+                                                }//end if user wants to open folder
                                                 input_data = None;
                                                 output_file = None;
-                                                println!("Finished outputing processed file.");
-                                                GUI::show_message("Processing complete.");
                                             }//end else everything was find
                                             gui.end_wait();
                                         },

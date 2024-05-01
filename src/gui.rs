@@ -61,7 +61,7 @@ pub struct GUI {
     ux_cf_xml_sieve_chck: CheckButton,
 }//end struct GUI
 
-#[allow(dead_code)]
+// #[allow(dead_code)]
 impl GUI {
     /// Returns a clone of the receiver so you can
     /// react to messages sent by gui.
@@ -154,6 +154,7 @@ impl GUI {
         input_csv_box.set_frame(io_box_frame);
         input_csv_box.set_scrollbar_align(Align::Bottom);
         input_csv_box.set_scrollbar_size(7);
+        input_csv_box.deactivate();
         input_csv_box.set_buffer(input_csv_buf.clone());
         io_controls_group.add_resizable(&input_csv_box);
         let input_csv_ref = Rc::from(RefCell::from(input_csv_box));
@@ -182,6 +183,7 @@ impl GUI {
             .with_size(io_btn_width, io_btn_height);
         // input_xml_btn.emit(s.clone(), String::from("IO::XMLInputFile"));
         input_xml_btn.set_frame(io_btn_frame);
+        input_xml_btn.deactivate();
         io_controls_group.add(&input_xml_btn);
 
         let input_xml_buf = TextBuffer::default();
@@ -191,6 +193,7 @@ impl GUI {
         input_xml_box.set_frame(io_box_frame);
         input_xml_box.set_scrollbar_align(Align::Bottom);
         input_xml_box.set_scrollbar_size(7);
+        input_xml_box.deactivate();
         input_xml_box.set_buffer(input_xml_buf.clone());
         io_controls_group.add_resizable(&input_xml_box);
         let input_xml_ref = Rc::from(RefCell::from(input_xml_box));
@@ -414,24 +417,32 @@ impl GUI {
         self.app.wait()
     }//end wait(&self)
 
-    /// Gets a file from the user to open.
-    pub fn get_file_to_open() -> std::path::PathBuf {
-        let mut dialog = dialog::NativeFileChooser::new(dialog::NativeFileChooserType::BrowseFile);
-        dialog.show();
-        dialog.filename()
-    }//end get_file()
-
-    /// Gets a file from the user to save.
-    pub fn get_file_to_save() -> std::path::PathBuf {
-        let mut dialog = dialog::NativeFileChooser::new(dialog::NativeFileChooserType::BrowseSaveFile);
-        dialog.show();
-        dialog.filename()
-    }//end get_file_to_save()
-
     /// Simply displays a message to the user.
     pub fn show_message(txt: &str) {
         dialog::message(0, 0, txt);
     }//end show_message(txt)
+
+    /// Asks user a yes or no question. Returns true if
+    /// user didn't close the dialog and clicked yes.
+    pub fn show_yes_no_message(txt: &str) -> bool {
+        match dialog::choice2(0, 0, txt, "yes", "no", "") {
+            Some(index) => index == 0,
+            None => false,
+        }//end matching dialog result
+    }//end show_yes_no_message
+
+    /// Returns the text shown in the output box.
+    pub fn get_output_text(&self) -> String {
+        let output_text = self.ux_output_file_txt.as_ref().borrow().buffer().unwrap_or_default().text();
+        output_text
+    }//end get_io_inputs(self)
+
+    /// Clears text from io area.
+    pub fn clear_output_text(&mut self) {
+        self.ux_input_csv_txt.borrow().buffer().unwrap_or_default().set_text("");
+        self.ux_input_xml_txt.borrow().buffer().unwrap_or_default().set_text("");
+        self.ux_output_file_txt.borrow().buffer().unwrap_or_default().set_text("");
+    }//end clear_output_text()
 
     /// Creates a ConfigStore from the current config settins, as
     /// chosen by the user.
