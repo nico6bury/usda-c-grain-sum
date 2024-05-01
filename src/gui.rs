@@ -215,7 +215,7 @@ impl GUI {
 
         // get output file from user
         let mut output_file_btn = Button::default()
-            .with_label("Select Output CSV")
+            .with_label("Select Output XLSX")
             .with_pos(input_xml_btn.x(), input_xml_btn.y() + input_xml_btn.h() + io_btn_padding)
             .with_size(io_btn_width, io_btn_height);
         // output_file_btn.emit(s.clone(), String::from("IO::OutputFile"));
