@@ -37,6 +37,7 @@ fn main() {
                 }//end if we should create a personalized config file
                 match config_store::try_write_config(&config_path_tmp, &new_conf_stor) {
                     Ok(_) => {
+                        gui.set_config_store(&new_conf_stor);
                         config_store = Some(new_conf_stor);
                         GUI::show_message("Your configuration was successfully written and set.\nIf you continue seeing messages about the config file when opening the program, please contact the developer.");
                     },
