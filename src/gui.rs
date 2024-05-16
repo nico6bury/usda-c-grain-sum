@@ -1,6 +1,6 @@
 use std::{cell::RefCell, rc::Rc};
 
-use fltk::{app::{self, App, Receiver, Sender}, button::{Button, CheckButton}, dialog::{self}, enums::{Align, Event, FrameType}, frame::Frame, group::{Group, Tile}, prelude::{DisplayExt, GroupExt, WidgetBase, WidgetExt, WindowExt}, text::{TextBuffer, TextDisplay, TextEditor}, window::{self, Window}};
+use fltk::{app::{self, App, Receiver, Sender}, button::{Button, CheckButton}, dialog::{self}, enums::{Align, FrameType}, frame::Frame, group::{Group, Tile}, prelude::{DisplayExt, GroupExt, WidgetExt, WindowExt}, text::{TextBuffer, TextDisplay, TextEditor}, window::{self, Window}};
 
 use usda_c_grain_sum::config_store::ConfigStore;
 
@@ -117,11 +117,6 @@ impl GUI {
         header_buf.append("USDA-ARS Manhattan, KS\tC-Grain Summarizer\n");
         header_buf.append(&format!("{}\tv{}\t\tNicholas Sixbury/Dan Brabec\n", date.format(format_des).unwrap_or(String::from("unknown compile time")) ,version.unwrap_or("unknown version")));
         header_buf.append("Processes CSV and XML Data from C-Grain into Sum Files\n");
-        // header_buf.append("\nCurrent Config Info:\n");
-        // header_buf.append("Filtering for Classification: Any | Sound | Sorghum\n");
-        // header_buf.append("Stat Columns: Area, Length, Width, Thickness, Ratio, Mean Width, HSV, RGB\n");
-        // header_buf.append("Classification Percent Columns: Yes\n");
-        // header_buf.append("XML Sieve Data: Yes");
         header_box.set_scrollbar_align(Align::Right);
 
         // set up group with input and output controls, processing stuff
@@ -160,21 +155,15 @@ impl GUI {
         let input_csv_ref = Rc::from(RefCell::from(input_csv_box));
         // let input_csv_pathbuf = Rc::from(RefCell::from(None));
 
-        input_csv_btn.handle({
+        input_csv_btn.set_callback({
             let input_csv_ref_clone = input_csv_ref.clone();
             let sender_clone = s.clone();
-            move |_, ev| {
+            move |_| {
                 let input_csv_ref = input_csv_ref_clone.as_ref().borrow();
-                match ev {
-                    Event::Released => {
-                        if let Err(err_message) = GUI::create_io_dialog(&sender_clone, "IO::CSVInputFile", &input_csv_ref, dialog::NativeFileChooserType::BrowseFile, dialog::NativeFileChooserOptions::UseFilterExt, "*.csv", "Please select a csv input file") {
-                            println!("Encountered an error when attempting to show file dialog:\n{}", err_message);
-                        }//end if we got an error
-                        true
-                    },
-                    _ => false,
-                }//end matching events
-            }//end moving closure for button event
+                if let Err(err_message) = GUI::create_io_dialog(&sender_clone, "IO::CSVInputFile", &input_csv_ref, dialog::NativeFileChooserType::BrowseFile, dialog::NativeFileChooserOptions::UseFilterExt, "*.csv", "Please select a csv input file") {
+                    println!("Encountered an error when attempting to show file dialog:\n{}", err_message);
+                }//end if we got an error
+            }//end moving for closure
         });
 
         let mut input_xml_btn = Button::default()
@@ -199,21 +188,15 @@ impl GUI {
         let input_xml_ref = Rc::from(RefCell::from(input_xml_box));
         // let input_xml_pathbuf = Rc::from(RefCell::from(None));
 
-        input_xml_btn.handle({
+        input_xml_btn.set_callback({
             let input_xml_ref_clone = input_xml_ref.clone();
             let sender_clone = s.clone();
-            move |_, ev| {
+            move |_| {
                 let input_xml_ref = input_xml_ref_clone.as_ref().borrow();
-                match ev {
-                    Event::Released => {
-                        if let Err(err_message) = GUI::create_io_dialog(&sender_clone, "IO::XMLInputFile", &input_xml_ref, dialog::NativeFileChooserType::BrowseFile, dialog::NativeFileChooserOptions::UseFilterExt, "*.xml", "Please select an xml input file") {
-                            println!("Encountered an error when attempting to show file dialog:\n{}", err_message);
-                        }//end if we got an error
-                        true
-                    },
-                    _ => false,
-                }//end matching events
-            }//end moving closure for button event
+                if let Err(err_message) = GUI::create_io_dialog(&sender_clone, "IO::XMLInputFile", &input_xml_ref, dialog::NativeFileChooserType::BrowseFile, dialog::NativeFileChooserOptions::UseFilterExt, "*.xml", "Please select an xml input file") {
+                    println!("Encountered an error when attempting to show file dialog:\n{}", err_message);
+                }//end if we got an error
+            }//end moving for closure
         });
 
         // get output file from user
@@ -237,21 +220,15 @@ impl GUI {
         let output_file_ref = Rc::from(RefCell::from(output_file_box));
         // let output_file_pathbuf = Rc::from(RefCell::from(None));
 
-        output_file_btn.handle({
+        output_file_btn.set_callback({
             let output_file_ref_clone = output_file_ref.clone();
             let sender_clone = s.clone();
-            move |_, ev| {
+            move |_| {
                 let output_file_ref = output_file_ref_clone.as_ref().borrow();
-                match ev {
-                    Event::Released => {
-                        if let Err(err_message) = GUI::create_io_dialog(&sender_clone, "IO::OutputFile", &output_file_ref, dialog::NativeFileChooserType::BrowseSaveFile, dialog::NativeFileChooserOptions::SaveAsConfirm, "", "Please specify the output file.") {
-                            println!("Encountered an error when attempting to show file dialog:\n{}", err_message);
-                        }//end if we got an error
-                        true
-                    },
-                    _ => false,
-                }//end matching events
-            }//end moving closure for button event
+                if let Err(err_message) = GUI::create_io_dialog(&sender_clone, "IO::OutputFile", &output_file_ref, dialog::NativeFileChooserType::BrowseSaveFile, dialog::NativeFileChooserOptions::SaveAsConfirm, "", "Please specify the output file.") {
+                    println!("Encountered an error when attempting to show file dialog:\n{}", err_message);
+                }//end if we got an error
+            }//end moving for closure
         });
 
         // process the data we have
