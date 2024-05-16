@@ -59,6 +59,14 @@ pub struct GUI {
     /// that are pulled from sieve data in the xml file. If no
     /// xml file is loaded, then this is meaningless.
     ux_cf_xml_sieve_chck: CheckButton,
+    /// Stores the last config_store we've got.  
+    /// It is initialized as ConfigStore::default().  
+    /// It should be noted that this field is not updated automatically
+    /// by changes to the GUI; instead, the primary purpose of always
+    /// storing this as a field is to ensure that information contained
+    /// in the config_store sent by main will be preserved, even if some
+    /// of that information is not directly represented by a widget.
+    config_store: ConfigStore,
 }//end struct GUI
 
 // #[allow(dead_code)]
@@ -352,6 +360,7 @@ impl GUI {
             ux_cf_stat_cols_buf: stat_cols_buf,
             ux_cf_class_perc_chck: class_perc_chck,
             ux_cf_xml_sieve_chck: xml_sieve_chck,
+            config_store: ConfigStore::default(),
         }//end struct construction
     }
 
@@ -437,25 +446,29 @@ impl GUI {
     /// Creates a ConfigStore from the current config settins, as
     /// chosen by the user.
     pub fn get_config_store(&self) -> ConfigStore {
+        let mut config_clone = self.config_store.clone();
+        
         let class_filter_txt = self.ux_cf_class_filter_buf.text();
         let stat_columns_txt = self.ux_cf_stat_cols_buf.text();
         // replace multi-char instance we want to split with single chars, then split on '|', ',', or '\n', as needed
         let class_filters: Vec<String> = class_filter_txt.replace(" | ", "|").replace(", ", ",").split(['|',',']).map(|el| el.to_owned()).collect();
         let stat_columns: Vec<String> = stat_columns_txt.replace(", ", ",").split([',','\n']).map(|el| el.to_owned()).collect();
 
-        ConfigStore {
-            csv_class_filter_enabled: self.ux_cf_class_filter_chck.is_checked(),
-            csv_class_filter_filters: class_filters,
-            csv_stat_columns_enabled: self.ux_cf_stat_cols_chck.is_checked(),
-            csv_stat_columns_columns: stat_columns,
-            csv_class_percent_enabled: self.ux_cf_class_perc_chck.is_checked(),
-            xml_sieve_cols_enabled: self.ux_cf_xml_sieve_chck.is_checked(),
-        }//end struct construction
+        config_clone.csv_class_filter_enabled = self.ux_cf_class_filter_chck.is_checked();
+        config_clone.csv_class_filter_filters = class_filters;
+        config_clone.csv_stat_columns_enabled = self.ux_cf_stat_cols_chck.is_checked();
+        config_clone.csv_stat_columns_columns = stat_columns;
+        config_clone.csv_class_percent_enabled = self.ux_cf_class_perc_chck.is_checked();
+        config_clone.xml_sieve_cols_enabled = self.ux_cf_xml_sieve_chck.is_checked();
+        
+        return config_clone;
     }//end get_config_store
 
     /// Updates the current configuration widgets in the interface to match
     /// the given ConfigStore.
     pub fn set_config_store(&mut self, config: &ConfigStore) {
+        self.config_store = config.clone();
+
         self.ux_cf_class_filter_chck.set_checked(config.csv_class_filter_enabled);
         self.ux_cf_class_filter_buf.set_text(&config.csv_class_filter_filters.join("|"));
         self.ux_cf_stat_cols_chck.set_checked(config.csv_stat_columns_enabled);
@@ -472,5 +485,5 @@ impl GUI {
     /// Clears the visual indication from start_wait()
     pub fn end_wait(&mut self) {
         self.ux_main_window.set_cursor(fltk::enums::Cursor::Default);
-    }
+    }//end end_wait(self)
 }//end impl for GUI
