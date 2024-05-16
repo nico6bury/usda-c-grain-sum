@@ -484,7 +484,7 @@ impl GUI {
         self.config_store = config.clone();
 
         self.ux_cf_class_filter_chck.set_checked(config.csv_class_filter_enabled);
-        self.ux_cf_class_filter_buf.set_text(&config.csv_class_filter_filters.join("|"));
+        self.ux_cf_class_filter_buf.set_text(&config.csv_class_filter_filters.join(" | "));
         self.ux_cf_stat_cols_chck.set_checked(config.csv_stat_columns_enabled);
         self.ux_cf_stat_cols_buf.set_text(&config.csv_stat_columns_columns.join("\n"));
         self.ux_cf_class_perc_chck.set_checked(config.csv_class_percent_enabled);
