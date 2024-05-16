@@ -22,37 +22,58 @@ fn main() {
     let config_name = "config";
     let mut config_path: Option<PathBuf> = None;
     let mut config_store: Option<ConfigStore> = None;
-    match config_store::try_read_config_path(config_name, true) {
+    match config_store::try_read_config_path(config_name, false) {
         Ok(config_path_tmp) => {
-            match config_store::try_read_config(&config_path_tmp) {
-                Ok(config_store_tmp) => {
-                    gui.set_config_store(&config_store_tmp);
-                    config_store = Some(config_store_tmp);
-                },
-                Err(msg) => {
-                    GUI::show_alert(&format!("Could not read config file at path \"{}\".\nReceived error msg {}", config_path_tmp.to_string_lossy(), msg));
-                    let should_create_new = GUI::show_yes_no_message("Problems with the config file might occur when changing versions.\nWhen the config file is deleted, the program will automatically create a new one by default.\nEven if a config file is not loaded, you can always set the config yourself using the section in the bottom right.\n\nWould you like to be delete the old config file and create a personalized one now?");
-                    if should_create_new {
-                        let mut new_conf_stor: Option<ConfigStore> = None;
-                        match GUI::show_three_choice("Do you want a personalized config file?\nIf so, choose which preset you want:", "Scott", "None/Default", "Rhett") {
-                            Some(0) => new_conf_stor = Some(config_store::get_scott_config()),
-                            Some(1) => new_conf_stor = Some(ConfigStore::default()),
-                            Some(2) => new_conf_stor = Some(config_store::get_rhett_config()),
-                            _ => GUI::show_message("Guided configuration setting cancelled."),
-                        }//end matching dialog result
-                        if let Some(new_conf_stor) = new_conf_stor {
-                            match config_store::try_write_config(&config_path_tmp, &new_conf_stor) {
-                                Ok(_) => {
-                                    GUI::show_message("Congrats, we successfully wrote your changes to the config file.\nWhatever the problem was, it should be fixed.\nIf you continue seeing messages about this everytime you open the application, please contact the developer.");
-                                    config_store = Some(new_conf_stor);
-                                },
-                                Err(msg) => GUI::show_alert(&format!("We couldn't write your config to the file.\nError message was \"{}\".\nIf this operation keeps failing, please contact the developer.", msg))
-                            }//end matching whether or not we can write to file
-                        }//end if we have a new config store to write
-                    }//end if we get the ok to make a new config file
-                }//end case of not being able to parse file at config_path_tmp
-            }//end matching whether we can read file at config_path_tmp
-            config_path = Some(config_path_tmp);
+            if !config_path_tmp.exists() {
+                let should_create_personal_file = GUI::show_yes_no_message("It seems that a configuration hasn't been set up yet. Perhaps this is your first time starting this application?\nIf a personalized config is not created, we'll just save a default configuration.\n\nYou can change your config at any time, but would you like to choose a preset configuration now?");
+                let mut new_conf_stor = ConfigStore::default();
+                if should_create_personal_file {
+                    match GUI::show_three_choice("Please choose the config preset you want, or None/Default if you want to just stick with the default config.", "Scott", "None/Default", "Rhett") {
+                        Some(0) => new_conf_stor = config_store::get_scott_config(),
+                        Some(1) => new_conf_stor = ConfigStore::default(),
+                        Some(2) => new_conf_stor = config_store::get_rhett_config(),
+                        _ => GUI::show_message("Guided configuration setting cancelled (somehow?). We'll just use the default then."),
+                    }//end matching dialog result for config preset
+                }//end if we should create a personalized config file
+                match config_store::try_write_config(&config_path_tmp, &new_conf_stor) {
+                    Ok(_) => {
+                        config_store = Some(new_conf_stor);
+                        GUI::show_message("Your configuration was successfully written and set.\nIf you continue seeing messages about the config file when opening the program, please contact the developer.");
+                    },
+                    Err(msg) => GUI::show_alert(&format!("It seems we were unable to write the new configuration to a file,\nthough you should still be able to the program for now with the config you selected.\nError message was \"{}\".\nIf this operation keeps failing, please contact the developer.", msg))
+                }//end matching whether or not we successfully wrote a new config file
+            }//end if config_path_tmp doesn't point to a real file
+            else {
+                match config_store::try_read_config(&config_path_tmp) {
+                    Ok(config_store_tmp) => {
+                        gui.set_config_store(&config_store_tmp);
+                        config_store = Some(config_store_tmp);
+                    },
+                    Err(msg) => {
+                        GUI::show_alert(&format!("Could not read config file at path \"{}\".\nReceived error msg {}", config_path_tmp.to_string_lossy(), msg));
+                        let should_create_new = GUI::show_yes_no_message("Problems with the config file might occur when changing versions.\nWhen the config file is deleted, the program will automatically create a new one by default.\nEven if a config file is not loaded, you can always set the config yourself using the section in the bottom right.\n\nWould you like to be delete the old config file and create a personalized one now?");
+                        if should_create_new {
+                            let mut new_conf_stor: Option<ConfigStore> = None;
+                            match GUI::show_three_choice("Do you want a personalized config file?\nIf so, choose which preset you want:", "Scott", "None/Default", "Rhett") {
+                                Some(0) => new_conf_stor = Some(config_store::get_scott_config()),
+                                Some(1) => new_conf_stor = Some(ConfigStore::default()),
+                                Some(2) => new_conf_stor = Some(config_store::get_rhett_config()),
+                                _ => GUI::show_message("Guided configuration setting cancelled."),
+                            }//end matching dialog result
+                            if let Some(new_conf_stor) = new_conf_stor {
+                                match config_store::try_write_config(&config_path_tmp, &new_conf_stor) {
+                                    Ok(_) => {
+                                        GUI::show_message("Congrats, we successfully wrote your changes to the config file.\nWhatever the problem was, it should be fixed.\nIf you continue seeing messages about this everytime you open the application, please contact the developer.");
+                                        config_store = Some(new_conf_stor);
+                                    },
+                                    Err(msg) => GUI::show_alert(&format!("We couldn't write your config to the file, though you should still be able\nto use the program for now with the config you selected.\nError message was \"{}\".\nIf this operation keeps failing, please contact the developer.", msg))
+                                }//end matching whether or not we can write to file
+                            }//end if we have a new config store to write
+                        }//end if we get the ok to make a new config file
+                    }//end case of not being able to parse file at config_path_tmp
+                }//end matching whether we can read file at config_path_tmp
+                config_path = Some(config_path_tmp);
+            }//end else the config file already exists
         },
         Err(msg) => GUI::show_alert(&format!("Could not determine the path to the config.\nReceived error msg {}", msg))
     }//end matching whether or not we can get config path
