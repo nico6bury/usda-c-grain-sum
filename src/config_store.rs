@@ -1,8 +1,10 @@
+use serde::{Deserialize, Serialize};
+use std::{env, fs::{self, File}, io::Write, path::PathBuf};
 
 /// This struct is meant to store configuration inforamation
 /// in a way that is not reliant on a specific ui implementation,
 /// such that it can be passed around easily.
-#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Debug, Default, Hash)]
+#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Debug, Hash, Deserialize, Serialize)]
 pub struct ConfigStore {
     /// Tells whether or not we should be filtering csv
     /// data to only include rows with a specific classification.
@@ -28,3 +30,94 @@ pub struct ConfigStore {
     /// xml file is loaded, then this is meaningless.
     pub xml_sieve_cols_enabled: bool,
 }//end struct ConfigStore
+
+impl Default for ConfigStore {
+    fn default() -> Self {
+        let class_filters_vec = vec!["Sound"];
+        let stat_columns_vec = vec!["Area","Length","Width","Thickness","Ratio","Mean Width","Volume","Weight","Light","Hue","Saturation","Red","Green","Blue"];
+        Self {
+            csv_class_filter_enabled: true,
+            csv_class_filter_filters: class_filters_vec.into_iter().map(|elem| elem.to_string()).collect(),
+            csv_stat_columns_enabled: true,
+            csv_stat_columns_columns: stat_columns_vec.into_iter().map(|elem| elem.to_string()).collect(),
+            csv_class_percent_enabled: true,
+            xml_sieve_cols_enabled: true
+        }//end struct initialization
+    }//end default()
+}//end impl Default for ConfigStore
+
+/// Attempts to determine the path to the config file.  
+/// Assumes that config file has filename of [config_name] and extension of .config.  
+/// If [create_if_missing] is true, and the file at path does not exist, then it will be created with default values.
+pub fn try_read_config_path(config_name: &str, create_if_missing: bool) -> Result<PathBuf, String> {
+    // directory which contains exe this program runs from
+    let exe_path = {
+        match env::current_exe() {
+            Ok(exe_path) => exe_path,
+            Err(error) => return Err(error.to_string()),
+        }//end matching whether we could get the current exe path
+    };
+
+    // set config path to be same parent as exe_path, but config_name
+    let config_path = {
+        let mut config_path = exe_path.clone();
+        config_path.set_file_name(config_name);
+        config_path.set_extension("config");
+        config_path
+    };
+
+    // depending on parameter, ensure config file exists
+    if !config_path.exists() && create_if_missing {
+        match File::create(config_path.clone()) {
+            Ok(mut file) => {
+                let default_config = ConfigStore::default();
+                match serde_json::to_string(&default_config) {
+                    Ok(serialized_config) => {
+                        match file.write_all(serialized_config.as_bytes()) {
+                            Ok(_) => (),
+                            Err(error) => return Err(error.to_string()),
+                        }//end matching whether file write was successful
+                    },
+                    Err(error) => return Err(error.to_string()),
+                }//end matching whether or not serde serialization worked
+            },
+            Err(error) => return Err(error.to_string()),
+        }//end matching if file was created
+    }//end if config_path does not exist
+
+    match config_path.exists() {
+        true => Ok(config_path),
+        false => Err(format!("Config file at path \"{}\" does not exist.", config_path.to_string_lossy()))
+    }//end matching whether config_path exists
+}//end try_read_config_path()
+
+/// Attempts to read contents of file at path and deserialize into ConfigStore object.
+pub fn try_read_config(config_path: &PathBuf) -> Result<ConfigStore,String> {
+    match fs::read_to_string(config_path) {
+        Ok(file_contents) => {
+            match serde_json::from_str(&file_contents) {
+                Ok(config_store) => Ok(config_store),
+                Err(error) => Err(error.to_string()),
+            }//end matching whether we can deserialize config
+        },
+        Err(error) => Err(error.to_string())
+    }//end matching whether we could read string from file
+}//end try_read_config()
+
+/// Attempts to write given config_store to the given path.
+pub fn try_write_config(config_path: &PathBuf, config_store: &ConfigStore) -> Result<(),String> {
+    match File::create(config_path) {
+        Ok(mut file) => {
+            match serde_json::to_string(config_store) {
+                Ok(config_serial) => {
+                    match file.write_all(config_serial.as_bytes()) {
+                        Ok(_) => Ok(()),
+                        Err(error) => Err(error.to_string()),
+                    }//end matching whether or not write succeeded
+                },
+                Err(error) => Err(error.to_string()),
+            }//end matching whether we could serialize config
+        },
+        Err(error) => Err(error.to_string()),
+    }//end matching whether we can see the file
+}//end try_write_config()
