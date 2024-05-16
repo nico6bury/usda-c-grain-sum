@@ -430,6 +430,20 @@ impl GUI {
         }//end matching dialog result
     }//end show_yes_no_message
 
+    /// Asks the user to choose between three options.  
+    /// If this is successful, returns index of choice, 0, 1, or 2
+    pub fn show_three_choice(txt: &str, c0: &str, c1: &str, c2: &str) -> Option<u8> {
+        match dialog::choice2_default(txt, c0, c1, c2) {
+            Some(index) => {
+                match u8::try_from(index) {
+                    Ok(val) => Some(val),
+                    Err(_) => None,
+                }//end matching whether we can convert properly
+            },
+            None => None,
+        }//end matching dialog result
+    }//end show_three_choice()
+
     /// Returns the text shown in the output box.
     pub fn get_output_text(&self) -> String {
         let output_text = self.ux_output_file_txt.as_ref().borrow().buffer().unwrap_or_default().text();
