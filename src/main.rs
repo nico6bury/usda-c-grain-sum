@@ -217,7 +217,21 @@ fn main() {
                         },
                         _ => println!("Unrecognized msg_fun {} in msg {}", msg_fun, msg),
                     }//end matching message function
-                }
+                },
+                "Config" => {
+                    match msg_fun {
+                        "Reset" => {
+                            let new_conf = match GUI::show_three_choice("Please choose the configuration preset you'd like to switch to:", "Scott", "None/Default", "Rhett") {
+                                Some(0) => config_store::get_scott_config(),
+                                Some(2) => config_store::get_rhett_config(),
+                                _ => config_store::ConfigStore::default(),
+                            };
+                            gui.set_config_store(&new_conf);
+                            config_store = Some(new_conf);
+                        },
+                        _ => println!("Unrecognized msg_fun {} in msg {}", msg_fun, msg),
+                    }//end matching message function
+                },
                 _ => println!("Unrecognized msg_loc {} in msg {}", msg_loc, msg),
             }//end matching message location
         }//end if we recieved a message

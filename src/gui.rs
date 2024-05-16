@@ -1,6 +1,6 @@
 use std::{cell::RefCell, rc::Rc};
 
-use fltk::{app::{self, App, Receiver, Sender}, button::{Button, CheckButton}, dialog, enums::{Align, Color, FrameType}, frame::Frame, group::{Group, Tile}, prelude::{DisplayExt, GroupExt, WidgetExt, WindowExt}, text::{TextBuffer, TextDisplay, TextEditor}, window::{self, Window}};
+use fltk::{app::{self, App, Receiver, Sender}, button::{Button, CheckButton}, dialog, enums::{Align, Color, Event, FrameType}, frame::Frame, group::{Group, Tile}, prelude::{DisplayExt, GroupExt, WidgetBase, WidgetExt, WindowExt}, text::{TextBuffer, TextDisplay, TextEditor}, window::{self, Window}};
 
 use usda_c_grain_sum::config_store::ConfigStore;
 
@@ -264,13 +264,32 @@ impl GUI {
             .with_size(tile_group.width() - io_controls_group.width(), tile_group.height() - header_group.height());
         config_group.end();
         tile_group.add(&config_group);
-
-        let config_label = Frame::default()
+        
+        let mut config_label = Frame::default()
             .with_pos(config_group.x(), config_group.y() + 10)
             .with_size(config_group.width(), 20)
             .with_label("Configuration Options")
             .with_align(Align::Center);
         config_group.add(&config_label);
+        
+        config_label.set_tooltip("Right click if you want to change config presets.");
+        config_label.handle({
+            let sender_clone = s.clone();
+            move |_, ev| {
+                match ev {
+                    Event::Released => {
+                        // event_button => 1 for left click, 2 for middle, 3 for right
+                        if app::event_button() == 3 {
+                            if GUI::show_yes_no_message("Would you like to reset the current configuration preset?") {
+                                sender_clone.send(format!("Config::Reset"));
+                            }//end if we want to reset the current config preset
+                        }//end if we have a right-click event
+                        true
+                    },
+                    _ => false
+                }
+            }//end moving for closure
+        });
 
         let mut class_filter_chck = CheckButton::default()
             .with_pos(config_label.x() + cf_padding, config_label.y() + config_label.h() + cf_padding)
