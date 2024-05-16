@@ -1,7 +1,7 @@
 use std::{path::PathBuf, str::FromStr};
 
 use simple_excel_writer::*;
-use usda_c_grain_sum::{config_store::ConfigStore, data};
+use usda_c_grain_sum::{config_store::{self, ConfigStore}, data};
 use {usda_c_grain_sum::data::{Data, DataVal}, gui::GUI};
 
 mod gui;
@@ -14,8 +14,29 @@ fn main() {
     // while gui.app.wait() {
 
     // }
+    
+    // setup gui
     let mut gui = GUI::initialize();
+    
+    // get config information
+    let config_name = "config";
+    let mut config_path: Option<PathBuf> = None;
+    let mut config_store: Option<ConfigStore> = None;
+    match config_store::try_read_config_path(config_name, true) {
+        Ok(config_path_tmp) => {
+            match config_store::try_read_config(&config_path_tmp) {
+                Ok(config_store_tmp) => {
+                    gui.set_config_store(&config_store_tmp);
+                    config_store = Some(config_store_tmp);
+                },
+                Err(msg) => GUI::show_alert(&format!("Could not read config file at path \"{}\".\nReceived error msg {}", config_path_tmp.to_string_lossy(), msg))
+            }
+            config_path = Some(config_path_tmp);
+        },
+        Err(msg) => GUI::show_alert(&format!("Could not determine the path to the config.\nReceived error msg {}", msg))
+    }//end matching whether or not we can get config path
 
+    // set up data containers for use during app loop
     let recv = gui.get_receiver();
     let mut input_data = None;
     let mut csv_input_file = None;
@@ -130,6 +151,29 @@ fn main() {
                         _ => println!("Unrecognized msg_fun {} in msg {}", msg_fun, msg),
                     }//end matching message function
                 },
+                "App" => {
+                    match msg_fun {
+                        "Closing" => {
+                            match config_path {
+                                Some(ref config_path_tmp) => {
+                                    match config_store {
+                                        Some(ref config_store_tmp) => {
+                                            match config_store::try_write_config(config_path_tmp, config_store_tmp) {
+                                                Ok(_) => println!("Config file updated!"),
+                                                Err(msg) => println!("Couldn't write config to file!\nReceived message \"{}\"!", msg),
+                                            }//end matching whether or not we can write the config to file
+                                        },
+                                        None => println!("Config Store not Initialized!"),
+                                    }//end matching whether we have config store
+                                },
+                                None => println!("Config Path not Found!"),
+                            };
+
+                            GUI::quit();
+                        },
+                        _ => println!("Unrecognized msg_fun {} in msg {}", msg_fun, msg),
+                    }//end matching message function
+                }
                 _ => println!("Unrecognized msg_loc {} in msg {}", msg_loc, msg),
             }//end matching message location
         }//end if we recieved a message

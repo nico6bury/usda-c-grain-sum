@@ -349,6 +349,14 @@ impl GUI {
         config_group.set_frame(FrameType::GtkUpBox);
 
         main_window.make_resizable(true);
+        // callback for window occurs when user tries to close it
+        main_window.set_callback({
+            let sender_clone = s.clone();
+            move |_| {
+                sender_clone.send(format!("App::Closing"));
+                println!("GUI Ready to Close!");
+            }
+        });
         main_window.show();
 
         GUI {
@@ -406,9 +414,9 @@ impl GUI {
         return Ok(());
     }//end create_io_dialog()
 
-    /// Makes the main window visible.
-    pub fn show(&mut self) {
-        self.ux_main_window.show();
+    /// Closes the application.
+    pub fn quit() {
+        app::App::default().quit();
     }//end show(self)
 
     /// Wraps app.wait().  
@@ -421,6 +429,11 @@ impl GUI {
     pub fn show_message(txt: &str) {
         dialog::message(0, 0, txt);
     }//end show_message(txt)
+
+    /// Simply displays an error message to the user.
+    pub fn show_alert(txt: &str) {
+        dialog::alert_default(txt);
+    }//end show_alert(txt)
 
     /// Asks user a yes or no question. Returns true if
     /// user didn't close the dialog and clicked yes.
