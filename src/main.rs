@@ -198,6 +198,7 @@ fn main() {
                         "Closing" => {
                             match config_path {
                                 Some(ref config_path_tmp) => {
+                                    if config_store.is_some() {config_store = Some(gui.get_config_store())}
                                     match config_store {
                                         Some(ref config_store_tmp) => {
                                             match config_store::try_write_config(config_path_tmp, config_store_tmp) {
