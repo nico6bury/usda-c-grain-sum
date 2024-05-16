@@ -55,6 +55,8 @@ impl Default for ConfigStore {
 pub fn get_scott_config() -> ConfigStore {
     let mut conf = ConfigStore::default();
     conf.personalized_config_name = String::from("Scott");
+    conf.csv_class_filter_filters = vec!["Sorghum".to_string()];
+    conf.csv_class_percent_enabled = true;
     return conf;
 }//end get_scott_config()
 
@@ -62,6 +64,8 @@ pub fn get_scott_config() -> ConfigStore {
 pub fn get_rhett_config() -> ConfigStore {
     let mut conf = ConfigStore::default();
     conf.personalized_config_name = String::from("Rhett");
+    conf.csv_class_filter_filters = vec!["Sound".to_string()];
+    conf.csv_class_percent_enabled = false;
     return conf;
 }//end get_rhett_config()
 
