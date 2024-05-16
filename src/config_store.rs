@@ -29,6 +29,10 @@ pub struct ConfigStore {
     /// that are pulled from sieve data in the xml file. If no
     /// xml file is loaded, then this is meaningless.
     pub xml_sieve_cols_enabled: bool,
+    /// Gives potential information on whether this config is
+    /// personalized for a particular person.  
+    /// The handling for this is likely to be kinda jank.
+    pub personalized_config_name: String
 }//end struct ConfigStore
 
 impl Default for ConfigStore {
@@ -41,7 +45,8 @@ impl Default for ConfigStore {
             csv_stat_columns_enabled: true,
             csv_stat_columns_columns: stat_columns_vec.into_iter().map(|elem| elem.to_string()).collect(),
             csv_class_percent_enabled: true,
-            xml_sieve_cols_enabled: true
+            xml_sieve_cols_enabled: true,
+            personalized_config_name: "".to_string(),
         }//end struct initialization
     }//end default()
 }//end impl Default for ConfigStore
