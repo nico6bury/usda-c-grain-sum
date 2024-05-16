@@ -529,7 +529,10 @@ impl GUI {
                 if config.personalized_config_name.eq("Scott") { self.ux_config_group.set_color(Color::from_rgb(220,239,220)) }
                 if config.personalized_config_name.eq("Rhett") { self.ux_config_group.set_color(Color::from_rgb(220,220,239)) }
             },
-            _ => self.ux_config_group.set_color(Color::Light1),
+            _ => {
+                self.ux_header_buf.set_text(&GUI::default_header_info());
+                self.ux_config_group.set_color(Color::Light1);
+            },
         }//end matching personalized configuration stuff
         self.ux_config_group.redraw();
     }//end set_config_store(self, config)
