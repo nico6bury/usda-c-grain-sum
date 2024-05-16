@@ -57,6 +57,7 @@ pub fn get_scott_config() -> ConfigStore {
     conf.personalized_config_name = String::from("Scott");
     conf.csv_class_filter_filters = vec!["Sorghum".to_string()];
     conf.csv_class_percent_enabled = true;
+    conf.xml_sieve_cols_enabled = false;
     return conf;
 }//end get_scott_config()
 
