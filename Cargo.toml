@@ -1,6 +1,12 @@
 [package]
 name = "usda-c-grain-sum"
 version = "0.2.0"
+authors = ["Nicholas Sixbury"]
+rust-version = "1.77.1"
+description = "This project is an application created for use in the USDA as a tool to process output from the C-Grain machine."
+readme = "README.md"
+repository = "https://github.com/nico6bury/usda-c-grain-sum"
+exclude = ["/target","/.vscode"]
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
