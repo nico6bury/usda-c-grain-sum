@@ -1,6 +1,6 @@
 use std::{cell::RefCell, rc::Rc};
 
-use fltk::{app::{self, App, Receiver, Sender}, button::{Button, CheckButton}, dialog::{self}, enums::{Align, FrameType}, frame::Frame, group::{Group, Tile}, prelude::{DisplayExt, GroupExt, WidgetExt, WindowExt}, text::{TextBuffer, TextDisplay, TextEditor}, window::{self, Window}};
+use fltk::{app::{self, App, Receiver, Sender}, button::{Button, CheckButton}, dialog, enums::{Align, Color, FrameType}, frame::Frame, group::{Group, Tile}, prelude::{DisplayExt, GroupExt, WidgetExt, WindowExt}, text::{TextBuffer, TextDisplay, TextEditor}, window::{self, Window}};
 
 use usda_c_grain_sum::config_store::ConfigStore;
 
@@ -24,6 +24,10 @@ pub struct GUI {
     msg_receiver: Receiver<String>,
     /// Buffer holding text in the header display
     ux_header_buf: TextBuffer,
+    /// The group holding all the configuration controls.  
+    /// This is stored here in order to set the appearance in
+    /// response to certain presets.
+    ux_config_group: Group,
     /// Buffer holding the filename/path for input csv file.
     ux_input_csv_txt: Rc<RefCell<TextEditor>>,
     /// Buffer holding the filename/path for input xml file.
@@ -77,6 +81,17 @@ impl GUI {
         return self.msg_receiver.clone();
     }//end get_receiver(self)
 
+    fn default_header_info() -> String {
+        let version = option_env!("CARGO_PKG_VERSION");
+        let format_des = time::macros::format_description!("[month repr:long] [year]");
+        let date = compile_time::date!();
+        let mut output = String::new();
+        output.push_str("USDA-ARS Manhattan, KS\tC-Grain Summarizer\n");
+        output.push_str(&format!("{}\tv{}\t\tNicholas Sixbury/Dan Brabec\n", date.format(format_des).unwrap_or(String::from("unknown compile time")) ,version.unwrap_or("unknown version")));
+        output.push_str("Processes CSV and XML Data from C-Grain into Sum Files\n");
+        return output;
+    }//end default_header_info()
+
     /// Sets up all the properties and appearances of
     /// various widgets and UI settings.
     pub fn initialize() -> GUI {
@@ -119,12 +134,7 @@ impl GUI {
             .with_size(header_group.w() - 20,header_group.h() - 20);
         header_group.add_resizable(&header_box);
         header_box.set_buffer(header_buf.clone());
-        let version = option_env!("CARGO_PKG_VERSION");
-        let format_des = time::macros::format_description!("[month repr:long] [year]");
-        let date = compile_time::date!();
-        header_buf.append("USDA-ARS Manhattan, KS\tC-Grain Summarizer\n");
-        header_buf.append(&format!("{}\tv{}\t\tNicholas Sixbury/Dan Brabec\n", date.format(format_des).unwrap_or(String::from("unknown compile time")) ,version.unwrap_or("unknown version")));
-        header_buf.append("Processes CSV and XML Data from C-Grain into Sum Files\n");
+        header_buf.append(&GUI::default_header_info());
         header_box.set_scrollbar_align(Align::Right);
 
         // set up group with input and output controls, processing stuff
@@ -351,6 +361,7 @@ impl GUI {
             msg_sender: s,
             msg_receiver: r,
             ux_header_buf: header_buf,
+            ux_config_group: config_group,
             ux_input_csv_txt: input_csv_ref,
             ux_input_xml_txt: input_xml_ref,
             ux_output_file_txt: output_file_ref,
@@ -489,6 +500,19 @@ impl GUI {
         self.ux_cf_stat_cols_buf.set_text(&config.csv_stat_columns_columns.join("\n"));
         self.ux_cf_class_perc_chck.set_checked(config.csv_class_percent_enabled);
         self.ux_cf_xml_sieve_chck.set_checked(config.xml_sieve_cols_enabled);
+
+        match config.personalized_config_name.as_str() {
+            "Scott" | "Rhett"=> {
+                let mut new_header = GUI::default_header_info();
+                new_header.push_str("Configuration for ");
+                new_header.push_str(&config.personalized_config_name);
+                self.ux_header_buf.set_text(&new_header);
+                if config.personalized_config_name.eq("Scott") { self.ux_config_group.set_color(Color::from_rgb(220,239,220)) }
+                if config.personalized_config_name.eq("Rhett") { self.ux_config_group.set_color(Color::from_rgb(220,220,239)) }
+            },
+            _ => self.ux_config_group.set_color(Color::Light1),
+        }//end matching personalized configuration stuff
+        self.ux_config_group.redraw();
     }//end set_config_store(self, config)
 
     /// Gives a small visual indication that the program is doing something in the background.
