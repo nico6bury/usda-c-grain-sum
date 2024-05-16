@@ -67,7 +67,8 @@ pub fn get_rhett_config() -> ConfigStore {
 
 /// Attempts to determine the path to the config file.  
 /// Assumes that config file has filename of [config_name] and extension of .config.  
-/// If [create_if_missing] is true, and the file at path does not exist, then it will be created with default values.
+/// If [create_if_missing] is true, and the file at path does not exist, then it will be created with default values.  
+/// If [create_if_missing] is false, then this function does not check whether or not the filepath exists.
 pub fn try_read_config_path(config_name: &str, create_if_missing: bool) -> Result<PathBuf, String> {
     // directory which contains exe this program runs from
     let exe_path = {
@@ -104,10 +105,7 @@ pub fn try_read_config_path(config_name: &str, create_if_missing: bool) -> Resul
         }//end matching if file was created
     }//end if config_path does not exist
 
-    match config_path.exists() {
-        true => Ok(config_path),
-        false => Err(format!("Config file at path \"{}\" does not exist.", config_path.to_string_lossy()))
-    }//end matching whether config_path exists
+    Ok(config_path)
 }//end try_read_config_path()
 
 /// Attempts to read contents of file at path and deserialize into ConfigStore object.
