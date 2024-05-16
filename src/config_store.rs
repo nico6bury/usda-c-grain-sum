@@ -51,6 +51,20 @@ impl Default for ConfigStore {
     }//end default()
 }//end impl Default for ConfigStore
 
+/// Gets default config which is personalized for needs of Scott
+pub fn get_scott_config() -> ConfigStore {
+    let mut conf = ConfigStore::default();
+    conf.personalized_config_name = String::from("Scott");
+    return conf;
+}//end get_scott_config()
+
+/// Gets default config which is personalized for needs of Rhett
+pub fn get_rhett_config() -> ConfigStore {
+    let mut conf = ConfigStore::default();
+    conf.personalized_config_name = String::from("Rhett");
+    return conf;
+}//end get_rhett_config()
+
 /// Attempts to determine the path to the config file.  
 /// Assumes that config file has filename of [config_name] and extension of .config.  
 /// If [create_if_missing] is true, and the file at path does not exist, then it will be created with default values.
