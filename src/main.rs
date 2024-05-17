@@ -1,7 +1,7 @@
 use std::{path::PathBuf, str::FromStr};
 
 use simple_excel_writer::*;
-use usda_c_grain_sum::{config_store::{self, ConfigStore}, data};
+use usda_c_grain_sum::{config_store::{self, ConfigStore}, data, process::{self, SampleOutput}};
 use {usda_c_grain_sum::data::{Data, DataVal}, gui::GUI};
 
 mod gui;
@@ -169,17 +169,53 @@ fn main() {
                                             println!("Started processing and outputing file.");
                                             // output_csv_sum(input, output);
                                             let config = gui.get_config_store();
-                                            if let Err(msg) = output_excel_sum(input, output, config) {
-                                                GUI::show_message(&format!("Encountered errors while processing:\n{}", msg));
-                                            } else {
-                                                println!("Finished outputing processed file.");
-                                                gui.clear_output_text();
-                                                if GUI::show_yes_no_message("Processing complete. Would you like to open the folder where the output file is located?") {
-                                                    opener::reveal(output).unwrap();
-                                                }//end if user wants to open folder
-                                                input_data = None;
-                                                output_file = None;
-                                            }//end else everything was find
+
+
+                                            // actually call the processing functions
+                                            match process::get_workbook(&output) {
+                                                Ok(mut wb) => {
+                                                    // make sure we aren't asking user to see workbook if nothing finished successfully
+                                                    let mut successfully_processed_at_least_once = false;
+                                                    // (name of sheet, data to go in that sheet)
+                                                    let mut output_sheets: Vec<(String, SampleOutput)> = Vec::new();
+                                                    
+                                                    // get all data we might want, based on config
+                                                    if config.csv_stat_columns_enabled {
+                                                        match process::proc_csv_stat_cols(input, &config) {
+                                                            Ok(sample_output) => output_sheets.push(("CSV_Stats".to_string(), sample_output)),
+                                                            Err(msg) => GUI::show_alert(&format!("An Error Occurred while trying to process CSV STAT Columns!\n{}",msg)),
+                                                        }//end matching whether or not csv stat columns were processed successfully
+                                                    }//end if we should output csv stat columns
+                                                    if config.csv_class_percent_enabled {
+                                                        // TODO: Finish class percent functions
+                                                        GUI::show_alert("CSV Class Percent Functions Not Yet Implemented!");
+                                                    }//end if we should output class percents
+                                                    if config.xml_sieve_cols_enabled {
+                                                        // TODO: Finish xml functions
+                                                        GUI::show_alert("XML Sieve Functions Not Yet Implemented!");
+                                                    }//end if we should output xml sieve cols
+
+                                                    for (sheet_name, sheet_data) in output_sheets {
+                                                        match process::write_output_to_sheet(&mut wb, &sheet_data, &sheet_name) {
+                                                            Ok(_) => successfully_processed_at_least_once = true,
+                                                            Err(msg) => GUI::show_alert(&format!("Ecountered an error while attempting to write data to worksheet {}.\n{}", sheet_name, msg)),
+                                                        }//end matching whether writing to sheet was a success
+                                                    }//end writing data from each output sheet
+
+                                                    if successfully_processed_at_least_once {
+                                                        println!("Finished outputing processed file.");
+                                                        gui.clear_output_text();
+                                                        if GUI::show_yes_no_message("Processing complete. Would you like to open the folder where the output file is located?") {
+                                                            opener::reveal(output).unwrap();
+                                                        }//end if user wants to open folder
+                                                        input_data = None;
+                                                        output_file = None;
+                                                    } else {
+                                                        GUI::show_alert("It seems that a processing routine was run without any successful outputs.\nThis shouldn't happen...");
+                                                    }//end else we never managed to process anything
+                                                },
+                                                Err(msg) => GUI::show_message(&format!("Encountered errors while creating output workbook:\n{}",msg)),
+                                            }//end matching whether or not we can successfully get the workbook object
                                             gui.end_wait();
                                         },
                                         None => GUI::show_message("No Output File Selected")
@@ -240,6 +276,7 @@ fn main() {
     println!("Program Exiting!");
 }
 
+#[allow(dead_code)]
 fn output_excel_sum(data: &Data, output_path: &PathBuf, config: ConfigStore) -> Result<(), String> {
     let base_data = data.get_records();
     let filtered_data = match config.csv_class_filter_enabled {
