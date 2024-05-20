@@ -10,6 +10,17 @@ pub enum DataVal{
     Float(f64),
 }//end enum ColumnType
 
+impl DataVal {
+    /// Returns the string representation of the
+    /// underlying data, using format!()
+    pub fn to_string(&self) -> String {
+        match self {
+            DataVal::Int(i) => format!("{}", i),
+            DataVal::String(s) => format!("{}", s),
+            DataVal::Float(f) => format!("{}", f),
+        }//end matching self
+    }//end to_string()
+}//end impl for DataVal
 /// Represents an individual cell of data,
 /// holding a copy of the header it's under.  
 /// This struct is largely intended to be used by 

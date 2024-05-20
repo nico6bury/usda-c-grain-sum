@@ -1,8 +1,9 @@
 use std::{path::PathBuf, str::FromStr};
 
-use simple_excel_writer::*;
-use usda_c_grain_sum::{config_store::{self, ConfigStore}, data};
-use {usda_c_grain_sum::data::{Data, DataVal}, gui::GUI};
+use usda_c_grain_sum::config_store::{self, ConfigStore};
+use usda_c_grain_sum::data::Data;
+use usda_c_grain_sum::process::{self, SampleOutput};
+use gui::GUI;
 
 mod gui;
 
@@ -169,17 +170,57 @@ fn main() {
                                             println!("Started processing and outputing file.");
                                             // output_csv_sum(input, output);
                                             let config = gui.get_config_store();
-                                            if let Err(msg) = output_excel_sum(input, output, config) {
-                                                GUI::show_message(&format!("Encountered errors while processing:\n{}", msg));
-                                            } else {
-                                                println!("Finished outputing processed file.");
-                                                gui.clear_output_text();
-                                                if GUI::show_yes_no_message("Processing complete. Would you like to open the folder where the output file is located?") {
-                                                    opener::reveal(output).unwrap();
-                                                }//end if user wants to open folder
-                                                input_data = None;
-                                                output_file = None;
-                                            }//end else everything was find
+
+
+                                            // actually call the processing functions
+                                            match process::get_workbook(&output) {
+                                                Ok(mut wb) => {
+                                                    // make sure we aren't asking user to see workbook if nothing finished successfully
+                                                    let mut successfully_processed_at_least_once = false;
+                                                    // (name of sheet, data to go in that sheet)
+                                                    let mut output_sheets: Vec<(String, SampleOutput)> = Vec::new();
+                                                    
+                                                    // get all data we might want, based on config
+                                                    if config.csv_stat_columns_enabled {
+                                                        match process::proc_csv_stat_cols(input, &config) {
+                                                            Ok(sample_output) => output_sheets.push(("CSV_Stats".to_string(), sample_output)),
+                                                            Err(msg) => GUI::show_alert(&format!("An Error Occurred while trying to process CSV STAT Columns!\n{}",msg)),
+                                                        }//end matching whether or not csv stat columns were processed successfully
+                                                    }//end if we should output csv stat columns
+                                                    if config.csv_class_percent_enabled {
+                                                        match process::proc_csv_class_per(input, &config) {
+                                                            Ok(sample_output) => output_sheets.push(("Class_Percents".to_string(), sample_output)),
+                                                            Err(msg) => GUI::show_alert(&format!("An Error Occured while trying to process CSV Class Percent Columns!\n{}",msg)),
+                                                        }//end matching whether or not csv class percents were processed successfully
+                                                    }//end if we should output class percents
+                                                    if config.xml_sieve_cols_enabled {
+                                                        // TODO: Finish xml functions
+                                                        GUI::show_alert("XML Sieve Functions Not Yet Implemented!");
+                                                    }//end if we should output xml sieve cols
+
+                                                    for (sheet_name, sheet_data) in output_sheets {
+                                                        match process::write_output_to_sheet(&mut wb, &sheet_data, &sheet_name) {
+                                                            Ok(_) => successfully_processed_at_least_once = true,
+                                                            Err(msg) => GUI::show_alert(&format!("Ecountered an error while attempting to write data to worksheet {}.\n{}", sheet_name, msg)),
+                                                        }//end matching whether writing to sheet was a success
+                                                    }//end writing data from each output sheet
+
+                                                    if let Err(error) = process::close_workbook(&mut wb) {GUI::show_alert(&format!("Encountered an error while attempting to write data to worksheet.\n{}",error));}
+
+                                                    if successfully_processed_at_least_once {
+                                                        println!("Finished outputing processed file.");
+                                                        gui.clear_output_text();
+                                                        if GUI::show_yes_no_message("Processing complete. Would you like to open the folder where the output file is located?") {
+                                                            opener::reveal(output).unwrap();
+                                                        }//end if user wants to open folder
+                                                        input_data = None;
+                                                        output_file = None;
+                                                    } else {
+                                                        GUI::show_alert("It seems that a processing routine was run without any successful outputs.\nThis shouldn't happen...");
+                                                    }//end else we never managed to process anything
+                                                },
+                                                Err(msg) => GUI::show_message(&format!("Encountered errors while creating output workbook:\n{}",msg)),
+                                            }//end matching whether or not we can successfully get the workbook object
                                             gui.end_wait();
                                         },
                                         None => GUI::show_message("No Output File Selected")
@@ -239,194 +280,3 @@ fn main() {
 
     println!("Program Exiting!");
 }
-
-fn output_excel_sum(data: &Data, output_path: &PathBuf, config: ConfigStore) -> Result<(), String> {
-    let base_data = data.get_records();
-    let filtered_data = match config.csv_class_filter_enabled {
-        true => {
-            // get filtered rows for each filter
-            let mut multi_filter_holding_vec = Vec::new();
-            let filter_col_idx = data.get_header_index("raw-filtered-as").unwrap_or_else(|| 5);
-            for filter in config.csv_class_filter_filters.iter() {
-                match data::get_filtered_records(&base_data, filter_col_idx, DataVal::String(filter.clone())) {
-                    Ok(mut single_filtered_rows) => multi_filter_holding_vec.append(&mut single_filtered_rows),
-                    Err(msg) => return Err(format!("Couldn't filter records for some reason. Err msg below:\n{}", msg)),
-                };
-            }//end looping over each filter we're using
-            // handle edge case of zero filters
-            if config.csv_class_filter_filters.len() == 0 { base_data }
-            else { multi_filter_holding_vec }
-        },
-        false => base_data,
-    };
-    // split data up based on reading in column external-sample-id, probably index 2
-    let split_data = {
-        let sample_id_col_idx = data.get_header_index("external-sample-id").unwrap_or_else(|| 2);
-        match data::get_split_records(&filtered_data, sample_id_col_idx) {
-            Ok(split_data_ok) => split_data_ok,
-            Err(msg) => return Err(format!("Couldn't split records based on \"external-sample-id\", which we think has 0-based col index {}. More information below:\n{}", sample_id_col_idx, msg)),
-        }//end matching whether we can get split data properly
-    };
-    println!("We split the data into {} groups.", split_data.len());
-    // get all the excel writer stuff ready
-    let mut wb = Workbook::create(output_path.as_path().to_str().unwrap());
-    let mut stat_sheet = wb.create_sheet("Stats");
-
-    // get whole string of all headers we'll output
-    let headers = {
-        let mut tmp_header_vec = Vec::new();
-        tmp_header_vec.push("external-sample-id".to_string());
-        if config.csv_stat_columns_enabled {
-            for col_label in config.csv_stat_columns_columns.iter() {
-                // make sure we can find that header
-                match data.get_header_index(&col_label) {
-                    Some(_) => {
-                        tmp_header_vec.push(format!("Avg {}", col_label));
-                        tmp_header_vec.push(format!("Std {}", col_label));
-                    }, None => println!("Couldn't find column header \"{}\". Skipping that column!", col_label),
-                }//end matching whether we can find the specified column header
-            }//end adding label for each col
-        }//end if we're outputting csv stat columns
-        tmp_header_vec
-    };
-    for header in headers.iter() {
-        stat_sheet.add_column(Column {width: header.len() as f32});
-    }//end adding column for each header
-
-    let excel_rows = {
-        let mut tmp_vec = Vec::new();
-        for (sample_id_val, rows) in split_data {
-            let row = {
-                let mut tmp_row = Row::new();
-    
-                let sample_id = match sample_id_val {
-                    DataVal::String(s) => s.to_string(),
-                    DataVal::Int(i) => format!("{}",i),
-                    DataVal::Float(f) => format!("{}",f),
-                }; tmp_row.add_cell(sample_id.clone()); //tmp_vals.push(sample_id.clone());
-
-                if config.csv_stat_columns_enabled {
-                    for stat_col_header in config.csv_stat_columns_columns.iter() {
-                        if let Some(col_idx) = data.get_header_index(stat_col_header) {
-                            let col_avg = match data::get_col_avg_sngl(&rows, col_idx) {
-                                Ok(avg) => avg,
-                                Err(msg) => return Err(format!("Encountered an error while trying to find the average value in for column {} for rows with sample id {}:\n{}", stat_col_header, sample_id, msg)),
-                            };
-                            let col_stdev = match data::get_col_stdev_sngl(&rows, col_idx) {
-                                Ok(stdev) => stdev,
-                                Err(msg) => {
-                                    if msg.starts_with("Encountered a string where there should be a number") {
-                                        println!("\nCouldn't calculate standard deviation for column {} and sample id {} because of a string being present in the data.", stat_col_header, sample_id);
-                                        println!("Standard deviation will be skipped for that column in that sample, instead listed as -1000.0. More information on how this happened:\n{}\n", msg);
-                                        -1000.0
-                                    } else { return Err(format!("Encountered an error while trying to find the standard deviation of column {} for rows with sample id {}:\n{}", stat_col_header, sample_id, msg)) }
-                                },
-                            };
-                            // tmp_vals.push(format!("{:.2}", col_avg));
-                            tmp_row.add_cell(data::precision_f64(col_avg, 2));
-                            // tmp_vals.push(format!("{:.2}", col_stdev));
-                            tmp_row.add_cell(data::precision_f64(col_stdev, 2));
-                        }//end if we can find the col_idx for that header
-                    }//end looping over each col in the stat columns
-                }//end if we're printing csv stat columns
-    
-                tmp_row
-            };
-            tmp_vec.push(row);
-        }//end looping over each sample split
-        tmp_vec.into_iter()
-    };
-    
-    // write all the rows out to the stat sheet
-    wb.write_sheet(&mut stat_sheet, |sheet_writer| {
-        let sw = sheet_writer;
-        sw.append_row(Row::from_iter(headers.into_iter()))?;
-        for row in excel_rows { sw.append_row(row)?; }
-        Ok(())
-    }).expect("write excel error!");
-
-    wb.close().expect("close excel error!");
-
-    return Ok(());
-}//end output_excel_sum
-
-#[allow(dead_code)]
-fn output_csv_sum(data: &Data, output_path: &PathBuf) {
-    let base_data = data.get_records();
-    // filter so that we only have Sound data
-    let sound_data = data::get_filtered_records(&base_data, 5, DataVal::String(String::from("Sound"))).unwrap();
-    // split data up based on reading in column 2, external-sample-id
-    let split_data = data::get_split_records(&sound_data, 2).unwrap();
-    println!("We split the data into {} groups.", split_data.len());
-    // get our csv writer
-    let mut writer = csv::Writer::from_path(output_path).unwrap();
-    // write headers
-    writer.write_field("ExtSampleID").unwrap();
-    for (col_idx, header) in data.get_headers().iter().enumerate() {
-        if col_idx >= 11 && col_idx <= 24 {
-            let h1 = format!("{}Avg", header);
-            let h2 = format!("{}Stdev", header);
-            writer.write_field(h1).unwrap();
-            writer.write_field(h2).unwrap();
-        }//end if index is within desired range
-    }//end writing the rest of the data headers
-    writer.write_record(None::<&[u8]>).unwrap();
-    // run through each grouping of external_sample_id and comput avg and stdev
-    for (sample_id, records) in split_data {
-        match sample_id {
-            DataVal::Int(i) => writer.write_field(format!("{}", i)).unwrap(),
-            DataVal::String(s) => writer.write_field(format!("{}", s)).unwrap(),
-            DataVal::Float(f) => writer.write_field(format!("{}", f)).unwrap(),
-        }//end matching type and printing sample id
-        // loop through column indices 11-24
-        for col_idx in 11..=24 {
-            let avgs = data::get_col_avg(&records, col_idx).unwrap();
-            let stdevs = data::get_col_stdev(&records, col_idx).unwrap();
-            writer.write_field(format!("{:.2}", avgs.1)).unwrap();
-            writer.write_field(format!("{:.2}", stdevs.1)).unwrap();
-        }//end looping through column indices 11-24
-        // effectively adds a newline
-        writer.write_record(None::<&[u8]>).unwrap();
-    }//end looping over split groups
-    writer.flush().unwrap();
-}//end output_csv_sum
-
-/// Formats a csv file in the format desired
-#[allow(dead_code)]
-fn format_csv_sum(data: &Data) {
-    /* 
-    Keep columns:
-    external-sample-id, 2  raw-filtered-as, 5
-    area, 11 length, 12 width, 13 thickness, 14 ratio, 15 mean width, 16 volume, 17
-    weight, 18 light, 19 hue, 20 saturation, 21 red, 22 green, 23 blue, 24
-     */
-    let base_data = data.get_records();
-    // filter so that we only have Sound data
-    let sound_data = data::get_filtered_records(&base_data, 5, DataVal::String("Sound".to_string())).unwrap();
-    // split data up based on reading in column 2, external-sample-id
-    let split_data = data::get_split_records(&sound_data, 2).unwrap();
-    println!("We split the data into {} groups.", split_data.len());
-    // print headers
-    print!("ExtSampleID");
-    for (col_idx, header) in data.get_headers().iter().enumerate() {
-        if col_idx >= 11 && col_idx <= 24 {
-            print!("\t{}Avg\t{}Stdev", header, header);
-        }//end if index is within desired range
-    }//end printing out all the data headers
-    print!("\n");
-    // run through each grouping of external-sample-id and compute avg and stdev for cols 11-24
-    for (sample_id, records) in split_data {
-        match sample_id {
-            DataVal::Int(i) => print!("{}\t", i),
-            DataVal::String(s) => print!("{}\t",s),
-            DataVal::Float(f) => print!("{}\t", f),
-        }//end printing out sample id
-        // loop through column indices 11-24
-        for col_idx in 11..=24 {
-            let avgs = data::get_col_avg(&records, col_idx).unwrap();
-            let stdevs = data::get_col_stdev(&records, col_idx).unwrap();
-            print!("{:.2}\t{:.2}\t", avgs.1, stdevs.1);
-        }//end looping over column indices 11-24
-        print!("\n");
-    }//end looping over split groups and doing avg
-}//end format_csv_sum
