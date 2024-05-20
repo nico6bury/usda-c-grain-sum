@@ -188,8 +188,10 @@ fn main() {
                                                         }//end matching whether or not csv stat columns were processed successfully
                                                     }//end if we should output csv stat columns
                                                     if config.csv_class_percent_enabled {
-                                                        // TODO: Finish class percent functions
-                                                        GUI::show_alert("CSV Class Percent Functions Not Yet Implemented!");
+                                                        match process::proc_csv_class_per(input, &config) {
+                                                            Ok(sample_output) => output_sheets.push(("Class_Percents".to_string(), sample_output)),
+                                                            Err(msg) => GUI::show_alert(&format!("An Error Occured while trying to process CSV Class Percent Columns!\n{}",msg)),
+                                                        }//end matching whether or not csv class percents were processed successfully
                                                     }//end if we should output class percents
                                                     if config.xml_sieve_cols_enabled {
                                                         // TODO: Finish xml functions
@@ -202,6 +204,8 @@ fn main() {
                                                             Err(msg) => GUI::show_alert(&format!("Ecountered an error while attempting to write data to worksheet {}.\n{}", sheet_name, msg)),
                                                         }//end matching whether writing to sheet was a success
                                                     }//end writing data from each output sheet
+
+                                                    if let Err(error) = process::close_workbook(&mut wb) {GUI::show_alert(&format!("Encountered an error while attempting to write data to worksheet.\n{}",error));}
 
                                                     if successfully_processed_at_least_once {
                                                         println!("Finished outputing processed file.");

@@ -93,6 +93,81 @@ pub fn proc_csv_stat_cols(data: &Data, config: &ConfigStore) -> Result<SampleOut
     Ok(output)
 }//end proc_csv_stat_cols(data, config)
 
+/// Does processing to find the percentage of each sample that belong to 
+/// each class. 
+pub fn proc_csv_class_per(data: &Data, config: &ConfigStore) -> Result<SampleOutput,String> {
+    if !config.csv_class_percent_enabled {return Err(format!("CSV Class Percents are disabled in config!"));}
+    
+    let base_data = data.get_records();
+    let split_data = {
+        let sample_id_col_idx = data.get_header_index("external-sample-id").unwrap_or(2);
+        match data::get_split_records(&base_data, sample_id_col_idx) {
+            Ok(split_data_ok) => split_data_ok,
+            Err(msg) => return Err(format!("Couldn't split records based on \"external-sample-id\", which we think has 0-based col index {}. More info below:\n{}",sample_id_col_idx,msg)),
+        }//end matching whether we can get split data properly
+    };
+
+    // use cor-filtered-as, expected col 6 for class
+    let class_idx = data.get_header_index("cor-filtered-as").unwrap_or(6);
+
+    // (sample-id, vec<(class_name, count of class)>)
+    let sample_class_totals: Vec<(&DataVal, Vec<(&DataVal, usize)>)> = {
+        let mut s_c_t = Vec::new();
+        for (sample_id, sample_data) in split_data {
+            // s_c_t.push((sample_id, Vec::new()));
+            let mut this_sample_count: Vec<(&DataVal,usize)> = Vec::new();
+            for sample_row in sample_data {
+                match sample_row.get_data(class_idx) {
+                    Some(cell) => {
+                        let this_val = cell.get_data();
+                        if this_sample_count.iter().filter(|elem| (*elem.0).eq(this_val)).count() == 0 {this_sample_count.push((this_val, 0))}
+                        for (class_name, class_count) in &mut this_sample_count {
+                            if (*class_name).eq(this_val) {*class_count += 1; break;}
+                        }//end looping to find classes with this name
+                    },
+                    None => println!("Couldn't access cell in 0-based col index {}, row {:?}!",class_idx,sample_row),
+                }//end matching whether we can access index
+            }//end looping over each row in data for this sample
+            s_c_t.push((sample_id, this_sample_count));
+        }//end looping over each sample
+        s_c_t
+    };
+
+    let all_class_options = {
+        let mut running_class_options = Vec::new();
+        for (_, class_totals) in sample_class_totals.iter() {
+            for (class_name, _) in class_totals.iter() {
+                if !running_class_options.contains(class_name) {
+                    running_class_options.push(class_name);
+                }//end if we don't already know this one
+            }//end looping over classes within this sample
+        }//end looping over class counts for each sample
+        running_class_options
+    };
+
+    let mut output = SampleOutput {
+        headers: Vec::new(),
+        sample_row: Vec::new(),
+    };
+
+    for class_option in all_class_options.iter() {
+        output.headers.push(format!("%{}",class_option.to_string()));
+    }//end adding each class option as a header
+
+    for (sample_id, class_counts) in sample_class_totals {
+        let all_classes_count = class_counts.iter().fold(0, |accum, elem| accum + elem.1);
+        let mut this_sample_row = Vec::new();
+        for class_name in all_class_options.iter() {
+            let count_for_class = class_counts.iter().filter(|elem| (*elem.0).eq(class_name)).fold(0, |accum, elem| accum + elem.1);
+            let class_percent = count_for_class as f64 / all_classes_count as f64 * 100.;
+            this_sample_row.push(DataVal::Float(class_percent));
+        }//end adding percent for each class option
+        output.sample_row.push((sample_id.to_string(), this_sample_row));
+    }//end looping over each sample's class counts
+
+    return Ok(output);
+}//end proc_csv_class_per(data, config)
+
 /// Creates an excel workbook at the specified path, allowing it
 /// to be used in later functions.  
 /// The primary reason for this function to fail is the inability to
@@ -108,6 +183,18 @@ pub fn get_workbook(output_path: &PathBuf) -> Result<Workbook,String> {
     }//end matching whether we can get the path correctly
 }//end get_workbook()
 
+/// Should be called after done working with a workbook.  
+/// It is not clear what the Option<Vec<u8>> refers to.
+pub fn close_workbook(workbook: &mut Workbook) -> Result<Option<Vec<u8>>,String> {
+    match workbook.close() {
+        Ok(a) => Ok(a),
+        Err(error) => Err(format!("Encountered an error while trying to close excel sheet!\n{:?}",error))
+    }//end matching result of closing workbook
+}//end close_workbook(workbook)
+
+/// Writes output from another function to a workbook that has already
+/// been created. After you're done calling this function (however many times),  
+/// make sure to call process::close_workbook().
 pub fn write_output_to_sheet(workbook: &mut Workbook, sheet_data: &SampleOutput, sheet_name: &str) -> Result<(),String> {
     let mut sheet = workbook.create_sheet(sheet_name);
 
@@ -160,8 +247,6 @@ pub fn write_output_to_sheet(workbook: &mut Workbook, sheet_data: &SampleOutput,
         for row in excel_rows { sw.append_row(row)?; }
         Ok(())
     }) {return Err(format!("Encountered an error while trying to write to excel sheet {}!\n{}", sheet_name, error.to_string()))};
-
-    if let Err(error) = workbook.close() {return Err(format!("Encountered an error while trying to close excel sheet {}!\n{}", sheet_name, error.to_string()));}
 
     Ok(())
 }//end write_output_to_sheet()
