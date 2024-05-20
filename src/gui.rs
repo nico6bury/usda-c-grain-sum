@@ -4,6 +4,31 @@ use fltk::{app::{self, App, Receiver, Sender}, button::{Button, CheckButton}, di
 
 use usda_c_grain_sum::config_store::ConfigStore;
 
+#[derive(Clone,PartialEq,Debug)]
+pub enum InterfaceMessage {
+    CSVInputFile(String),
+    XMLInputFile(String),
+    OutputFile(String),
+    ProcessSum,
+    AppClosing,
+    ConfigReset,
+    Other(String),
+}//end enum InterfaceMessage
+
+impl InterfaceMessage {
+    pub fn from_header(header: &str, content: String) -> InterfaceMessage {
+        match header {
+            "CSVInputFile" => InterfaceMessage::CSVInputFile(content),
+            "XMLInputFile" => InterfaceMessage::XMLInputFile(content),
+            "OutputFile" => InterfaceMessage::OutputFile(content),
+            "ProcessSum" => InterfaceMessage::ProcessSum,
+            "AppClosing" => InterfaceMessage::AppClosing,
+            "ConfigReset" => InterfaceMessage::ConfigReset,
+            _ => InterfaceMessage::Other(content),
+        }//end matching header to message
+    }//end from_header
+}//end InterfaceMessage
+
 #[allow(dead_code)]
 /// This struct represents a graphical user interface for the program.
 /// The program is meant to be written in an MVC way, without the GUI
@@ -18,10 +43,10 @@ pub struct GUI {
     /// Holds debug messages sent by main
     debug_log: Vec<String>,
     /// Message Sender, used to send button events to main, essentially.
-    msg_sender: Sender<String>,
+    msg_sender: Sender<InterfaceMessage>,
     /// Message Receiver, we give a reference to this to main, 
     /// allowing it to receive our messages.
-    msg_receiver: Receiver<String>,
+    msg_receiver: Receiver<InterfaceMessage>,
     /// Buffer holding text in the header display
     ux_header_buf: TextBuffer,
     /// The group holding all the configuration controls.  
@@ -77,7 +102,7 @@ pub struct GUI {
 impl GUI {
     /// Returns a clone of the receiver so you can
     /// react to messages sent by gui.
-    pub fn get_receiver(&self) -> Receiver<String> {
+    pub fn get_receiver(&self) -> Receiver<InterfaceMessage> {
         return self.msg_receiver.clone();
     }//end get_receiver(self)
 
@@ -230,7 +255,7 @@ impl GUI {
         let cf_chck_frame = FrameType::GtkUpFrame;
         let cf_box_frame = FrameType::GtkDownFrame;
 
-        let (s,r) = app::channel();
+        let (s, r): (Sender<InterfaceMessage>, Receiver<InterfaceMessage>) = app::channel();
 
         let mut tile_group = Tile::default()
             .with_pos(0, 0)
@@ -295,7 +320,7 @@ impl GUI {
             let sender_clone = s.clone();
             move |_| {
                 let input_csv_ref = input_csv_ref_clone.as_ref().borrow();
-                if let Err(err_message) = GUI::create_io_dialog(&sender_clone, "IO::CSVInputFile", &input_csv_ref, dialog::NativeFileChooserType::BrowseFile, dialog::NativeFileChooserOptions::UseFilterExt, "*.csv", "Please select a csv input file") {
+                if let Err(err_message) = GUI::create_io_dialog(&sender_clone, "CSVInputFile", &input_csv_ref, dialog::NativeFileChooserType::BrowseFile, dialog::NativeFileChooserOptions::UseFilterExt, "*.csv", "Please select a csv input file") {
                     println!("Encountered an error when attempting to show file dialog:\n{}", err_message);
                 }//end if we got an error
             }//end moving for closure
@@ -328,7 +353,7 @@ impl GUI {
             let sender_clone = s.clone();
             move |_| {
                 let input_xml_ref = input_xml_ref_clone.as_ref().borrow();
-                if let Err(err_message) = GUI::create_io_dialog(&sender_clone, "IO::XMLInputFile", &input_xml_ref, dialog::NativeFileChooserType::BrowseFile, dialog::NativeFileChooserOptions::UseFilterExt, "*.xml", "Please select an xml input file") {
+                if let Err(err_message) = GUI::create_io_dialog(&sender_clone, "XMLInputFile", &input_xml_ref, dialog::NativeFileChooserType::BrowseFile, dialog::NativeFileChooserOptions::UseFilterExt, "*.xml", "Please select an xml input file") {
                     println!("Encountered an error when attempting to show file dialog:\n{}", err_message);
                 }//end if we got an error
             }//end moving for closure
@@ -360,7 +385,7 @@ impl GUI {
             let sender_clone = s.clone();
             move |_| {
                 let output_file_ref = output_file_ref_clone.as_ref().borrow();
-                if let Err(err_message) = GUI::create_io_dialog(&sender_clone, "IO::OutputFile", &output_file_ref, dialog::NativeFileChooserType::BrowseSaveFile, dialog::NativeFileChooserOptions::SaveAsConfirm, "", "Please specify the output file.") {
+                if let Err(err_message) = GUI::create_io_dialog(&sender_clone, "OutputFile", &output_file_ref, dialog::NativeFileChooserType::BrowseSaveFile, dialog::NativeFileChooserOptions::SaveAsConfirm, "", "Please specify the output file.") {
                     println!("Encountered an error when attempting to show file dialog:\n{}", err_message);
                 }//end if we got an error
             }//end moving for closure
@@ -371,7 +396,7 @@ impl GUI {
             .with_label("Process Data")
             .with_pos(output_file_btn.x() + 60, output_file_btn.y() + output_file_btn.h() + 10)
             .with_size(250, 50);
-        process_file_btn.emit(s.clone(), String::from("Proc::Sum"));
+        process_file_btn.emit(s.clone(), InterfaceMessage::ProcessSum);
         process_file_btn.set_frame(FrameType::PlasticDownBox);
         io_controls_group.add_resizable(&process_file_btn);
 
@@ -398,7 +423,7 @@ impl GUI {
                         // event_button => 1 for left click, 2 for middle, 3 for right
                         if app::event_button() == 3 {
                             if GUI::show_yes_no_message("Would you like to reset the current configuration preset?") {
-                                sender_clone.send(format!("Config::Reset"));
+                                sender_clone.send(InterfaceMessage::ConfigReset);
                             }//end if we want to reset the current config preset
                         }//end if we have a right-click event
                         true
@@ -484,7 +509,7 @@ impl GUI {
         main_window.set_callback({
             let sender_clone = s.clone();
             move |_| {
-                sender_clone.send(format!("App::Closing"));
+                sender_clone.send(InterfaceMessage::AppClosing);
                 println!("GUI Ready to Close!");
             }
         });
@@ -513,7 +538,7 @@ impl GUI {
 
     /// Helper method used in initialize to share code between handlers
     /// of io buttons.
-    fn create_io_dialog(sender: &Sender<String>, msg_header: &str, txt: &TextEditor, dialog_type: dialog::NativeFileChooserType, dialog_option: dialog::NativeFileChooserOptions, dialog_filter: &str, dialog_title: &str ) -> Result<(), String> {
+    fn create_io_dialog(sender: &Sender<InterfaceMessage>, msg_header: &str, txt: &TextEditor, dialog_type: dialog::NativeFileChooserType, dialog_option: dialog::NativeFileChooserOptions, dialog_filter: &str, dialog_title: &str ) -> Result<(), String> {
         // make sure textbuffer is accessible
         let mut txt_buf = match txt.buffer() {
             Some(buf) => buf,
@@ -539,7 +564,7 @@ impl GUI {
                         match filename_os.to_str() {
                             Some(filename) => {
                                 txt_buf.set_text(filename);
-                                sender.send(format!("{}::{}", msg_header, filepath));
+                                sender.send(InterfaceMessage::from_header(msg_header,format!("{}",filepath)));
                             }, None => return Err(format!("Couldn't get filename for some reason. Failed at to_str()."))
                         }}, None => return Err(format!("Couldn't get filename for some reason. Maybe dialog was cancelled."))}
             }, None => return Err(format!("Couldn't get filepath for some reason."))}
