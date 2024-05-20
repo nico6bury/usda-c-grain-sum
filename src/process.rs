@@ -168,6 +168,44 @@ pub fn proc_csv_class_per(data: &Data, config: &ConfigStore) -> Result<SampleOut
     return Ok(output);
 }//end proc_csv_class_per(data, config)
 
+/// Converts Data from xml into a SampleOutput.  
+/// It is assumed that any necessary processing has already been done,
+/// and the sample id is called "external-sample-id" or has index 1.
+pub fn proc_xml_sieve_data(data: &Data, config: &ConfigStore) -> Result<SampleOutput,String> {
+    if !config.xml_sieve_cols_enabled {return Err(format!("XML Sieve Data is disabled in the config!"));}
+
+    let base_data = data.get_records();
+
+    let mut output = SampleOutput {
+        headers: Vec::new(),
+        sample_row: Vec::new(),
+    };
+
+    let sample_id_col_idx = data.get_header_index("external-sample-id").unwrap_or(1);
+    
+    for (col_idx, header) in data.get_headers().iter().enumerate() {
+        if col_idx <= sample_id_col_idx {continue;}
+        output.headers.push(header.to_string());
+    }//end filling output with headers from sample_id_col_idx onwards
+
+    // just add the raw data to output, we assume it was processed already
+    for row in base_data {
+        match row.get_data(sample_id_col_idx) {
+            Some(sample_id) => {
+                let mut datavals: Vec<DataVal> = Vec::new();
+                for (col_idx, datacell) in row.get_row_data().iter().enumerate() {
+                    if col_idx <= sample_id_col_idx {continue;}
+                    datavals.push(datacell.get_data().clone());
+                }//end looping over each data cell in the row
+                output.sample_row.push((sample_id.get_data().to_string(),datavals));
+            },
+            None => println!("\nSkipping a row during XML Output!: {:?}\nCouldn't get the sample_id for row idx {}.\nExpected 0-based col-idx of {} for header \"external-sample-id\", but row data has length of {}.\n",row,row.get_row_idx(),sample_id_col_idx,row.get_row_data().len()),
+        }//en dmatching whether we can get the row data
+    }//end looping over each row
+
+    return Ok(output);
+}//end proc_xml_sieve_data(data,config)
+
 /// Creates an excel workbook at the specified path, allowing it
 /// to be used in later functions.  
 /// The primary reason for this function to fail is the inability to
