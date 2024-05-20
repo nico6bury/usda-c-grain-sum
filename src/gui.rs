@@ -92,6 +92,123 @@ impl GUI {
         return output;
     }//end default_header_info()
 
+    /// Closes the application.
+    pub fn quit() {
+        app::App::default().quit();
+    }//end show(self)
+
+    /// Wraps app.wait().  
+    /// To run main app loop, use while(gui.wait()){}.
+    pub fn wait(&self) -> bool {
+        self.app.wait()
+    }//end wait(&self)
+
+    /// Simply displays a message to the user.
+    pub fn show_message(txt: &str) {
+        dialog::message(0, 0, txt);
+    }//end show_message(txt)
+
+    /// Simply displays an error message to the user.
+    pub fn show_alert(txt: &str) {
+        dialog::alert_default(txt);
+    }//end show_alert(txt)
+
+    /// Asks user a yes or no question. Returns true if
+    /// user didn't close the dialog and clicked yes.
+    pub fn show_yes_no_message(txt: &str) -> bool {
+        match dialog::choice2(0, 0, txt, "yes", "no", "") {
+            Some(index) => index == 0,
+            None => false,
+        }//end matching dialog result
+    }//end show_yes_no_message
+
+    /// Asks the user to choose between three options.  
+    /// If this is successful, returns index of choice, 0, 1, or 2
+    pub fn show_three_choice(txt: &str, c0: &str, c1: &str, c2: &str) -> Option<u8> {
+        match dialog::choice2_default(txt, c0, c1, c2) {
+            Some(index) => {
+                match u8::try_from(index) {
+                    Ok(val) => Some(val),
+                    Err(_) => None,
+                }//end matching whether we can convert properly
+            },
+            None => None,
+        }//end matching dialog result
+    }//end show_three_choice()
+
+    /// Returns the text shown in the output box.
+    pub fn get_output_text(&self) -> String {
+        let output_text = self.ux_output_file_txt.as_ref().borrow().buffer().unwrap_or_default().text();
+        output_text
+    }//end get_io_inputs(self)
+
+    /// Clears text from io area.
+    pub fn clear_output_text(&mut self) {
+        self.ux_input_csv_txt.borrow().buffer().unwrap_or_default().set_text("");
+        self.ux_input_xml_txt.borrow().buffer().unwrap_or_default().set_text("");
+        self.ux_output_file_txt.borrow().buffer().unwrap_or_default().set_text("");
+    }//end clear_output_text()
+
+    /// Creates a ConfigStore from the current config settins, as
+    /// chosen by the user.
+    pub fn get_config_store(&self) -> ConfigStore {
+        let mut config_clone = self.config_store.clone();
+        
+        let class_filter_txt = self.ux_cf_class_filter_buf.text();
+        let stat_columns_txt = self.ux_cf_stat_cols_buf.text();
+        // replace multi-char instance we want to split with single chars, then split on '|', ',', or '\n', as needed
+        let class_filters: Vec<String> = class_filter_txt.replace(" | ", "|").replace(", ", ",").split(['|',',']).map(|el| el.to_owned()).collect();
+        let stat_columns: Vec<String> = stat_columns_txt.replace(", ", ",").split([',','\n']).map(|el| el.to_owned()).collect();
+
+        config_clone.csv_class_filter_enabled = self.ux_cf_class_filter_chck.is_checked();
+        config_clone.csv_class_filter_filters = class_filters;
+        config_clone.csv_stat_columns_enabled = self.ux_cf_stat_cols_chck.is_checked();
+        config_clone.csv_stat_columns_columns = stat_columns;
+        config_clone.csv_class_percent_enabled = self.ux_cf_class_perc_chck.is_checked();
+        config_clone.xml_sieve_cols_enabled = self.ux_cf_xml_sieve_chck.is_checked();
+        
+        return config_clone;
+    }//end get_config_store
+
+    /// Updates the current configuration widgets in the interface to match
+    /// the given ConfigStore.
+    pub fn set_config_store(&mut self, config: &ConfigStore) {
+        self.config_store = config.clone();
+
+        self.ux_cf_class_filter_chck.set_checked(config.csv_class_filter_enabled);
+        self.ux_cf_class_filter_buf.set_text(&config.csv_class_filter_filters.join(" | "));
+        self.ux_cf_stat_cols_chck.set_checked(config.csv_stat_columns_enabled);
+        self.ux_cf_stat_cols_buf.set_text(&config.csv_stat_columns_columns.join("\n"));
+        self.ux_cf_class_perc_chck.set_checked(config.csv_class_percent_enabled);
+        self.ux_cf_xml_sieve_chck.set_checked(config.xml_sieve_cols_enabled);
+
+        match config.personalized_config_name.as_str() {
+            "Scott" | "Rhett"=> {
+                let mut new_header = GUI::default_header_info();
+                new_header.push_str("Configuration for ");
+                new_header.push_str(&config.personalized_config_name);
+                self.ux_header_buf.set_text(&new_header);
+                if config.personalized_config_name.eq("Scott") { self.ux_config_group.set_color(Color::from_rgb(220,239,220)) }
+                if config.personalized_config_name.eq("Rhett") { self.ux_config_group.set_color(Color::from_rgb(220,220,239)) }
+            },
+            _ => {
+                self.ux_header_buf.set_text(&GUI::default_header_info());
+                self.ux_config_group.set_color(Color::Light1);
+            },
+        }//end matching personalized configuration stuff
+        self.ux_config_group.redraw();
+    }//end set_config_store(self, config)
+
+    /// Gives a small visual indication that the program is doing something in the background.
+    pub fn start_wait(&mut self) {
+        self.ux_main_window.set_cursor(fltk::enums::Cursor::Wait);
+    }//end start_wait(self)
+
+    /// Clears the visual indication from start_wait()
+    pub fn end_wait(&mut self) {
+        self.ux_main_window.set_cursor(fltk::enums::Cursor::Default);
+    }//end end_wait(self)
+
     /// Sets up all the properties and appearances of
     /// various widgets and UI settings.
     pub fn initialize() -> GUI {
@@ -429,121 +546,4 @@ impl GUI {
 
         return Ok(());
     }//end create_io_dialog()
-
-    /// Closes the application.
-    pub fn quit() {
-        app::App::default().quit();
-    }//end show(self)
-
-    /// Wraps app.wait().  
-    /// To run main app use, use while(gui.wait()){}.
-    pub fn wait(&self) -> bool {
-        self.app.wait()
-    }//end wait(&self)
-
-    /// Simply displays a message to the user.
-    pub fn show_message(txt: &str) {
-        dialog::message(0, 0, txt);
-    }//end show_message(txt)
-
-    /// Simply displays an error message to the user.
-    pub fn show_alert(txt: &str) {
-        dialog::alert_default(txt);
-    }//end show_alert(txt)
-
-    /// Asks user a yes or no question. Returns true if
-    /// user didn't close the dialog and clicked yes.
-    pub fn show_yes_no_message(txt: &str) -> bool {
-        match dialog::choice2(0, 0, txt, "yes", "no", "") {
-            Some(index) => index == 0,
-            None => false,
-        }//end matching dialog result
-    }//end show_yes_no_message
-
-    /// Asks the user to choose between three options.  
-    /// If this is successful, returns index of choice, 0, 1, or 2
-    pub fn show_three_choice(txt: &str, c0: &str, c1: &str, c2: &str) -> Option<u8> {
-        match dialog::choice2_default(txt, c0, c1, c2) {
-            Some(index) => {
-                match u8::try_from(index) {
-                    Ok(val) => Some(val),
-                    Err(_) => None,
-                }//end matching whether we can convert properly
-            },
-            None => None,
-        }//end matching dialog result
-    }//end show_three_choice()
-
-    /// Returns the text shown in the output box.
-    pub fn get_output_text(&self) -> String {
-        let output_text = self.ux_output_file_txt.as_ref().borrow().buffer().unwrap_or_default().text();
-        output_text
-    }//end get_io_inputs(self)
-
-    /// Clears text from io area.
-    pub fn clear_output_text(&mut self) {
-        self.ux_input_csv_txt.borrow().buffer().unwrap_or_default().set_text("");
-        self.ux_input_xml_txt.borrow().buffer().unwrap_or_default().set_text("");
-        self.ux_output_file_txt.borrow().buffer().unwrap_or_default().set_text("");
-    }//end clear_output_text()
-
-    /// Creates a ConfigStore from the current config settins, as
-    /// chosen by the user.
-    pub fn get_config_store(&self) -> ConfigStore {
-        let mut config_clone = self.config_store.clone();
-        
-        let class_filter_txt = self.ux_cf_class_filter_buf.text();
-        let stat_columns_txt = self.ux_cf_stat_cols_buf.text();
-        // replace multi-char instance we want to split with single chars, then split on '|', ',', or '\n', as needed
-        let class_filters: Vec<String> = class_filter_txt.replace(" | ", "|").replace(", ", ",").split(['|',',']).map(|el| el.to_owned()).collect();
-        let stat_columns: Vec<String> = stat_columns_txt.replace(", ", ",").split([',','\n']).map(|el| el.to_owned()).collect();
-
-        config_clone.csv_class_filter_enabled = self.ux_cf_class_filter_chck.is_checked();
-        config_clone.csv_class_filter_filters = class_filters;
-        config_clone.csv_stat_columns_enabled = self.ux_cf_stat_cols_chck.is_checked();
-        config_clone.csv_stat_columns_columns = stat_columns;
-        config_clone.csv_class_percent_enabled = self.ux_cf_class_perc_chck.is_checked();
-        config_clone.xml_sieve_cols_enabled = self.ux_cf_xml_sieve_chck.is_checked();
-        
-        return config_clone;
-    }//end get_config_store
-
-    /// Updates the current configuration widgets in the interface to match
-    /// the given ConfigStore.
-    pub fn set_config_store(&mut self, config: &ConfigStore) {
-        self.config_store = config.clone();
-
-        self.ux_cf_class_filter_chck.set_checked(config.csv_class_filter_enabled);
-        self.ux_cf_class_filter_buf.set_text(&config.csv_class_filter_filters.join(" | "));
-        self.ux_cf_stat_cols_chck.set_checked(config.csv_stat_columns_enabled);
-        self.ux_cf_stat_cols_buf.set_text(&config.csv_stat_columns_columns.join("\n"));
-        self.ux_cf_class_perc_chck.set_checked(config.csv_class_percent_enabled);
-        self.ux_cf_xml_sieve_chck.set_checked(config.xml_sieve_cols_enabled);
-
-        match config.personalized_config_name.as_str() {
-            "Scott" | "Rhett"=> {
-                let mut new_header = GUI::default_header_info();
-                new_header.push_str("Configuration for ");
-                new_header.push_str(&config.personalized_config_name);
-                self.ux_header_buf.set_text(&new_header);
-                if config.personalized_config_name.eq("Scott") { self.ux_config_group.set_color(Color::from_rgb(220,239,220)) }
-                if config.personalized_config_name.eq("Rhett") { self.ux_config_group.set_color(Color::from_rgb(220,220,239)) }
-            },
-            _ => {
-                self.ux_header_buf.set_text(&GUI::default_header_info());
-                self.ux_config_group.set_color(Color::Light1);
-            },
-        }//end matching personalized configuration stuff
-        self.ux_config_group.redraw();
-    }//end set_config_store(self, config)
-
-    /// Gives a small visual indication that the program is doing something in the background.
-    pub fn start_wait(&mut self) {
-        self.ux_main_window.set_cursor(fltk::enums::Cursor::Wait);
-    }//end start_wait(self)
-
-    /// Clears the visual indication from start_wait()
-    pub fn end_wait(&mut self) {
-        self.ux_main_window.set_cursor(fltk::enums::Cursor::Default);
-    }//end end_wait(self)
 }//end impl for GUI
