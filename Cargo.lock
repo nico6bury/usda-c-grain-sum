@@ -488,7 +488,7 @@ dependencies = [
 
 [[package]]
 name = "usda-c-grain-sum"
-version = "0.2.2"
+version = "0.2.4"
 dependencies = [
  "compile-time",
  "csv",
