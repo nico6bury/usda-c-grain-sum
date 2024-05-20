@@ -190,7 +190,7 @@ impl GUI {
             .with_size(io_btn_width, io_btn_height);
         // input_xml_btn.emit(s.clone(), String::from("IO::XMLInputFile"));
         input_xml_btn.set_frame(io_btn_frame);
-        input_xml_btn.deactivate();
+        // input_xml_btn.deactivate();
         io_controls_group.add(&input_xml_btn);
 
         let input_xml_buf = TextBuffer::default();
