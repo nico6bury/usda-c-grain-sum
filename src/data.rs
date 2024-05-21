@@ -1,6 +1,7 @@
-use std::fs::File;
+use std::{fs::File, io::BufReader};
 
 use csv::Reader;
+use quick_xml::events::Event;
 
 /// Holds the value within a Cell, which might be a String, Int, or Float.
 #[derive(Clone, PartialEq, Debug)]
@@ -292,6 +293,84 @@ impl Data {
             return Some( Data {headers, records: data_records} );
         } else { return None; }
     }//end from_csv_reader()
+
+    /// Reads data in from an xml file.
+    pub fn from_xml_reader(mut reader: quick_xml::Reader<BufReader<File>>) -> Result<Data,String> {
+        let mut buf = Vec::new();
+
+        let mut data_rows: Vec<DataRow> = Vec::new();
+        let mut data_cells: Vec<DataCell> = Vec::new();
+
+        let sample_id_tag = b"sample-id";
+        let external_id_tag = b"reference";
+        let sample_start_end_tag = b"sample-result";
+        // let sample_info_tags = vec![b"machine-id",b"sample-id",b"reference"];
+        let sieving_starts_with = b"filter-sieving";
+        let mut most_recent_tag = None;
+
+        loop {
+            match reader.read_event_into(&mut buf) {
+                Err(e) => return Err(format!("Encountered error at position {}: {:?}",reader.buffer_position(),e)),
+                Ok(Event::Eof) => break,
+
+                Ok(Event::Start(byte_start)) => {
+                    let tag_name = String::from_utf8(byte_start.name().as_ref().to_vec()).unwrap();//format!("{}",byte_start.name().as_ref());
+                    if tag_name.as_bytes().eq(sample_id_tag) || tag_name.as_bytes().eq(external_id_tag) {
+                        most_recent_tag = Some(tag_name);
+                    } else if tag_name.as_bytes().starts_with(sieving_starts_with) {
+                        most_recent_tag = Some(tag_name);
+                    }//end cases of tag being relevant
+                    // println!("attributes values: {:?}",byte_start.attributes().map(|a| a.unwrap().value).collect::<Vec<_>>());
+                }, //end start event case
+                Ok(Event::Text(btxt)) => {
+                    if most_recent_tag.is_some() {
+                        let cur_tag = most_recent_tag.unwrap();
+                        let txt = btxt.unescape().unwrap().into_owned();
+                        let data_cell = DataCell::new(&cur_tag, txt);
+                        data_cells.push(data_cell);
+                        most_recent_tag = Some(cur_tag);
+                    }//end if we have a recent tag
+                },
+                Ok(Event::End(bytes_end)) => {
+                    // assume tag is either end of sample, valid for most recent, or not important
+                    if bytes_end.name().as_ref().eq(sample_start_end_tag) {
+                        let datarow = DataRow::new(data_rows.len(),data_cells.clone());
+                        data_cells.clear();
+                        data_rows.push(datarow);
+                    }//end if this is the end of a sample
+                    else if most_recent_tag.is_some() {
+                        let m_r_t = most_recent_tag.unwrap();
+                        // check for current tag closing, updating most_recent
+                        if m_r_t.as_bytes().eq(bytes_end.name().as_ref()) {
+                            most_recent_tag = None;
+                        } else {most_recent_tag = Some(m_r_t);}
+                    }//end if there was a recent tag
+                    // println!("closing tag {}", String::from_utf8_lossy(bytes_end.name().as_ref()));
+                },
+
+                Ok(event) => println!("Unhandled event {:?}",event),
+            }//end matching reader events
+            buf.clear();
+        }//end looping while we have stuff to read from file
+
+        /*
+        Instead of checking for new headers on every sample (within the loop),
+        we'll assume that each sample has the same headers, and can thus be gathered
+        by looking at each DataCell in the first DataRow.
+         */
+        let mut headers_vec = Vec::new();
+        if let Some(first_row) = data_rows.first() {
+            for data_cell in first_row.get_row_data() {
+                let this_header = data_cell.get_header();
+                if !headers_vec.contains(this_header) {
+                    headers_vec.push(data_cell.get_header().clone());
+                }//end if we found a new header
+            }//end looping over each cell in first row
+        }//end if we have at least one row
+
+        let data = Data::from_row_data(headers_vec, data_rows);
+        return Ok(data);
+    }//end from_xml_reader(reader)
 
     /// Constructs a Data struct from a vector of headers and DataRows.
     /// 
