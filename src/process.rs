@@ -209,7 +209,7 @@ pub fn proc_xml_sieve_data(data: &Data, config: &ConfigStore) -> Result<SampleOu
 /// Creates an excel workbook at the specified path, allowing it
 /// to be used in later functions.  
 /// The primary reason for this function to fail is the inability to
-/// convert [output_path] to a string. The most likely cause for that
+/// convert output_path to a string. The most likely cause for that
 /// is invalid unicode characters.
 pub fn get_workbook(output_path: &PathBuf) -> Result<Workbook,String> {
     match output_path.as_path().to_str() {
@@ -222,7 +222,7 @@ pub fn get_workbook(output_path: &PathBuf) -> Result<Workbook,String> {
 }//end get_workbook()
 
 /// Should be called after done working with a workbook.  
-/// It is not clear what the Option<Vec<u8>> refers to.
+/// It is not clear what the `Option<Vec<u8>>` refers to.
 pub fn close_workbook(workbook: &mut Workbook) -> Result<Option<Vec<u8>>,String> {
     match workbook.close() {
         Ok(a) => Ok(a),

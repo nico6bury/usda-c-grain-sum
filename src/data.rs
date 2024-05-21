@@ -423,7 +423,7 @@ impl Data {
 
 /// Splits records up based on unique values in the specified column index.
 /// So, for example, if a sample id has header index 0, and you have sample ids
-/// of [1,2,3], then calling this function with col_splt_idx of 0 would give
+/// of \[1,2,3\], then calling this function with col_splt_idx of 0 would give
 /// a Vec of data rows which sample id 1, a Vec of with only sample id 2, etc.
 /// 
 /// # Errors

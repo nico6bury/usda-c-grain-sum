@@ -71,9 +71,9 @@ pub fn get_rhett_config() -> ConfigStore {
 }//end get_rhett_config()
 
 /// Attempts to determine the path to the config file.  
-/// Assumes that config file has filename of [config_name] and extension of .config.  
-/// If [create_if_missing] is true, and the file at path does not exist, then it will be created with default values.  
-/// If [create_if_missing] is false, then this function does not check whether or not the filepath exists.
+/// Assumes that config file has filename of config_name and extension of .config.  
+/// If create_if_missing is true, and the file at path does not exist, then it will be created with default values.  
+/// If create_if_missing is false, then this function does not check whether or not the filepath exists.
 pub fn try_read_config_path(config_name: &str, create_if_missing: bool) -> Result<PathBuf, String> {
     // directory which contains exe this program runs from
     let exe_path = {
