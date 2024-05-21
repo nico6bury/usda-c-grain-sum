@@ -5,7 +5,7 @@ Files from the C-Grain can be output as csv or xml files. When documentation in 
 
 Since this is a cargo project, simply use `cargo run` to compile and run the program from the same directory as the cargo.toml file.
 
-Automated tests can be executed with `cargo test`. To build a release version, use `cargo run --release` or `cargo build --release`. Documentation can be generated in the target folder using `cargo doc`. For more information on cargo commands, see the cargo documentation.
+Automated tests can be executed with `cargo test`. To build a release version, use `cargo run --release` or `cargo build --release`. Documentation can be generated in the target folder using `cargo doc --no-deps --document-private-items`. For more information on cargo commands, see the cargo documentation.
 
 The cargo.toml file can be read to find additional package information, such as the version of this package, the version of rust this package compiles with, and all dependencies used, along with their versions.
 
