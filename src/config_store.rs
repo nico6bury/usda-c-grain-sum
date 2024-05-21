@@ -55,7 +55,9 @@ impl Default for ConfigStore {
 pub fn get_scott_config() -> ConfigStore {
     let mut conf = ConfigStore::default();
     conf.personalized_config_name = String::from("Scott");
+    conf.csv_stat_columns_enabled = true;
     conf.csv_class_filter_filters = vec!["Sorghum".to_string()];
+    conf.csv_stat_columns_columns = vec!["Area","Length","Width","Volume","Weight","Light","Hue","Saturation","Red","Green","Blue"].iter().map(|i| i.to_string()).collect();
     conf.csv_class_percent_enabled = true;
     conf.xml_sieve_cols_enabled = false;
     return conf;
