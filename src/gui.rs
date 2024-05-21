@@ -1,32 +1,54 @@
-use std::{cell::RefCell, rc::Rc};
+use std::{cell::RefCell, path::PathBuf, rc::Rc};
 
 use fltk::{app::{self, App, Receiver, Sender}, button::{Button, CheckButton}, dialog, enums::{Align, Color, Event, FrameType}, frame::Frame, group::{Group, Tile}, prelude::{DisplayExt, GroupExt, WidgetBase, WidgetExt, WindowExt}, text::{TextBuffer, TextDisplay, TextEditor}, window::{self, Window}};
 
 use usda_c_grain_sum::config_store::ConfigStore;
 
+/// This enum is specifically intended for message passing
+/// from the GUI to the main function. This is done
+/// with Sender and Receiver objects created in initialize()
 #[derive(Clone,PartialEq,Debug)]
 pub enum InterfaceMessage {
-    CSVInputFile(String),
-    XMLInputFile(String),
-    OutputFile(String),
+    /// Indicates that the user has selected a CSV Input File.
+    /// The filepath selected by the user is returned in the message.
+    CSVInputFile(PathBuf),
+    /// Indicates that the user has selected an XML Input File.
+    /// The filepath selected by the user is returned in the message.
+    XMLInputFile(PathBuf),
+    /// Indicates that the user has selected an Output File.
+    /// The filepath selected by the user is returned in the message.
+    OutputFile(PathBuf),
+    /// Indicates that the user has clicked the Process Button,
+    /// so they wish for the output file to be produced.
     ProcessSum,
+    /// Indicates that the app is currently closing.
     AppClosing,
+    /// Indicates that the user has requested for the current
+    /// configuration preset to be reselected, as if they
+    /// had started the program for the first time.
     ConfigReset,
+    /// Indicates that some other, unidentified message has been
+    /// passed. In most cases, this is likely to be a mistake
+    /// on the part of the sender.
     Other(String),
 }//end enum InterfaceMessage
 
 impl InterfaceMessage {
-    pub fn from_header(header: &str, content: String) -> InterfaceMessage {
+    /// Generates a file-based InterfaceMessage from the header and
+    /// content. Specifically, this function returns one of:
+    /// - CSVInputFile
+    /// - XMLInputFile
+    /// - OutputFile
+    /// - Other
+    /// depending on the header.
+    pub fn file_message_from_header(header: &str, content: PathBuf) -> InterfaceMessage {
         match header {
             "CSVInputFile" => InterfaceMessage::CSVInputFile(content),
             "XMLInputFile" => InterfaceMessage::XMLInputFile(content),
             "OutputFile" => InterfaceMessage::OutputFile(content),
-            "ProcessSum" => InterfaceMessage::ProcessSum,
-            "AppClosing" => InterfaceMessage::AppClosing,
-            "ConfigReset" => InterfaceMessage::ConfigReset,
-            _ => InterfaceMessage::Other(content),
-        }//end matching header to message
-    }//end from_header
+            _ => InterfaceMessage::Other(content.to_string_lossy().into_owned()),
+        }//end matching header to type.
+    }//end file_message_from_header(header,content)
 }//end InterfaceMessage
 
 #[allow(dead_code)]
@@ -106,6 +128,14 @@ impl GUI {
         return self.msg_receiver.clone();
     }//end get_receiver(self)
 
+    /// Constructs the String holding default header information, aside from
+    /// config preset information. This function builds in the pkg version,
+    /// the time at which the program was compiled, and some other common
+    /// header information.
+    /// 
+    /// This function was originally created in order to make it easier to
+    /// add or remove text from the header in response to configuration preset
+    /// changes.
     fn default_header_info() -> String {
         let version = option_env!("CARGO_PKG_VERSION");
         let format_des = time::macros::format_description!("[month repr:long] [year]");
@@ -161,21 +191,25 @@ impl GUI {
         }//end matching dialog result
     }//end show_three_choice()
 
-    /// Returns the text shown in the output box.
+    /// Returns the text shown in the output file box.
+    /// This box is meant to display the file name (without the directory)
+    /// of the output file the user has chosen. 
     pub fn get_output_text(&self) -> String {
         let output_text = self.ux_output_file_txt.as_ref().borrow().buffer().unwrap_or_default().text();
         output_text
     }//end get_io_inputs(self)
 
     /// Clears text from io area.
+    /// This includes the text boxes displaying the csv input filename,
+    /// the xml input filename, and the output filename.
     pub fn clear_output_text(&mut self) {
         self.ux_input_csv_txt.borrow().buffer().unwrap_or_default().set_text("");
         self.ux_input_xml_txt.borrow().buffer().unwrap_or_default().set_text("");
         self.ux_output_file_txt.borrow().buffer().unwrap_or_default().set_text("");
     }//end clear_output_text()
 
-    /// Creates a ConfigStore from the current config settins, as
-    /// chosen by the user.
+    /// Creates a ConfigStore from the current config settings, as
+    /// chosen by the user. 
     pub fn get_config_store(&self) -> ConfigStore {
         let mut config_clone = self.config_store.clone();
         
@@ -557,17 +591,13 @@ impl GUI {
             return Err(format!("We encountered a dialog error somehow. Details below:\n{}", dialog_error));
         }//end if dialog had an error
         // make sure we can get the file from the dialog
-        match dialog.filename().as_os_str().to_str() {
-            Some(filepath) => {
-                match dialog.filename().file_name() {
-                    Some(filename_os) => {
-                        match filename_os.to_str() {
-                            Some(filename) => {
-                                txt_buf.set_text(filename);
-                                sender.send(InterfaceMessage::from_header(msg_header,format!("{}",filepath)));
-                            }, None => return Err(format!("Couldn't get filename for some reason. Failed at to_str()."))
-                        }}, None => return Err(format!("Couldn't get filename for some reason. Maybe dialog was cancelled."))}
-            }, None => return Err(format!("Couldn't get filepath for some reason."))}
+        match dialog.filename().file_name() {
+            Some(filename) => {
+                txt_buf.set_text(filename.to_string_lossy().as_ref());
+                sender.send(InterfaceMessage::file_message_from_header(msg_header,dialog.filename()));
+            },
+            None => return Err(format!("Couldn't get filename for some reason"))
+        }//end matching whether we can get the filename to set the box
 
         return Ok(());
     }//end create_io_dialog()

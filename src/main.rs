@@ -1,5 +1,5 @@
 use core::str;
-use std::{path::PathBuf, str::FromStr};
+use std::path::PathBuf;
 
 use usda_c_grain_sum::config_store::{self, ConfigStore};
 use usda_c_grain_sum::data::Data;
@@ -9,6 +9,7 @@ use gui::GUI;
 use crate::gui::InterfaceMessage;
 
 mod gui;
+
 
 fn main() {
     // setup gui
@@ -32,45 +33,41 @@ fn main() {
 
     while gui.wait() {
         match recv.recv() {
-            Some(InterfaceMessage::CSVInputFile(file_path)) if file_path != "None" => {
+            Some(InterfaceMessage::CSVInputFile(file_path)) => {
                 // try to get csv file
                 gui.start_wait();
-                let path_buf = PathBuf::from(file_path);
-                match csv::Reader::from_path(path_buf.clone()) {
+                match csv::Reader::from_path(file_path.clone()) {
                     Ok(reader) => {
                         println!("We got the csv reader");
                         let data = Data::from_csv_reader(reader).unwrap();
                         println!("We finished reading {} records from the csv", data.get_records().len());
                         input_csv_data = Some(data);
-                        csv_input_file = Some(path_buf);
+                        csv_input_file = Some(file_path);
                         // format_csv_sum(&data);
                     },
                     Err(_) => GUI::show_message("Couldn't get csv reader."),
                 }//end matching result of getting csv reader
                 gui.end_wait();
             },
-            Some(InterfaceMessage::XMLInputFile(file_path)) if file_path != "None" => {
+            Some(InterfaceMessage::XMLInputFile(file_path)) => {
                 // try to get the xml file
                 gui.start_wait();
-                let path_buf = PathBuf::from(file_path);
-                match quick_xml::Reader::from_file(path_buf.clone()) {
+                match quick_xml::Reader::from_file(file_path.clone()) {
                     Ok(reader) => {
                         println!("We got the xml reader");
                         let xml_data = Data::from_xml_reader(reader).unwrap();
                         println!("We finished reading {} records from the xml file.", xml_data.get_records().len());
                         input_xml_data = Some(xml_data);
-                        xml_input_file = Some(path_buf);
+                        xml_input_file = Some(file_path);
                     },
                     Err(error) => GUI::show_alert(&format!("Error occured when trying to open xml file:\n{:?}",error)),
                 }//end matching whether we can open the xml file
                 gui.end_wait();
             },
-            Some(InterfaceMessage::OutputFile(file_path)) if file_path != "None" => {
+            Some(InterfaceMessage::OutputFile(file_path)) => {
                 // we got an output file
-                match PathBuf::from_str(&file_path) {
-                    Ok(path_buf) => {output_file = Some(path_buf); println!("Got output file path: \"{}\"", file_path);},
-                    Err(_) => println!("Somehow we couldn't get a path_buf even though the conversion is infallible. This should never happen."),
-                }//end matching whether we can get pathbuf
+                println!("Got output file path: \"{}\"", file_path.to_string_lossy());
+                output_file = Some(file_path);
             },
             Some(InterfaceMessage::ProcessSum) => {
                 let config_store = Some(gui.get_config_store());
