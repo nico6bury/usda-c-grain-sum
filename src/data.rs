@@ -295,16 +295,14 @@ impl Data {
     }//end from_csv_reader()
 
     /// Reads data in from an xml file.
-    pub fn from_xml_reader(mut reader: quick_xml::Reader<BufReader<File>>) -> Result<Data,String> {
+    pub fn from_xml_reader(mut reader: quick_xml::Reader<BufReader<File>>, tags_to_include: Option<Vec<String>>, sample_closing_tag: Option<&[u8]>) -> Result<Data,String> {
         let mut buf = Vec::new();
 
         let mut data_rows: Vec<DataRow> = Vec::new();
         let mut data_cells: Vec<DataCell> = Vec::new();
 
-        let sample_id_tag = b"sample-id";
-        let external_id_tag = b"reference";
-        let sample_start_end_tag = b"sample-result";
-        // let sample_info_tags = vec![b"machine-id",b"sample-id",b"reference"];
+        let tags_to_include = tags_to_include.unwrap_or(vec!["sample-id".to_string(),"reference".to_string()]);
+        let sample_start_end_tag = sample_closing_tag.unwrap_or(b"sample-result");
         let sieving_starts_with = b"filter-sieving";
         let mut most_recent_tag = None;
 
@@ -314,13 +312,12 @@ impl Data {
                 Ok(Event::Eof) => break,
 
                 Ok(Event::Start(byte_start)) => {
-                    let tag_name = String::from_utf8(byte_start.name().as_ref().to_vec()).unwrap();//format!("{}",byte_start.name().as_ref());
-                    if tag_name.as_bytes().eq(sample_id_tag) || tag_name.as_bytes().eq(external_id_tag) {
+                    let tag_name = String::from_utf8(byte_start.name().as_ref().to_vec()).unwrap();
+                    if tags_to_include.contains(&tag_name) {
                         most_recent_tag = Some(tag_name);
                     } else if tag_name.as_bytes().starts_with(sieving_starts_with) {
                         most_recent_tag = Some(tag_name);
                     }//end cases of tag being relevant
-                    // println!("attributes values: {:?}",byte_start.attributes().map(|a| a.unwrap().value).collect::<Vec<_>>());
                 }, //end start event case
                 Ok(Event::Text(btxt)) => {
                     if most_recent_tag.is_some() {
@@ -345,7 +342,6 @@ impl Data {
                             most_recent_tag = None;
                         } else {most_recent_tag = Some(m_r_t);}
                     }//end if there was a recent tag
-                    // println!("closing tag {}", String::from_utf8_lossy(bytes_end.name().as_ref()));
                 },
 
                 Ok(event) => println!("Unhandled event {:?}",event),

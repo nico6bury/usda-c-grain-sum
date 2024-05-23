@@ -32,7 +32,20 @@ pub struct ConfigStore {
     /// Gives potential information on whether this config is
     /// personalized for a particular person.  
     /// The handling for this is likely to be kinda jank.
-    pub personalized_config_name: String
+    pub personalized_config_name: String,
+    /// Tells us which column name to look for to determine class
+    /// when doing class filtering.
+    pub csv_class_filter_class: String,
+    /// The column header which we should use as the sample-id for csv data.
+    pub csv_sample_id_header: String,
+    /// The column header which we should use as the sample-id for xml data.
+    pub xml_sample_id_header: String,
+    /// Additional columns which should be included in xml output.
+    pub xml_tags_to_include: Vec<String>,
+    /// The tag which encloses a sample in the xml files.
+    /// When the parser sees a closing tag with this name,
+    /// it assumes we've reached the end of one sample.
+    pub xml_sample_closing_tag: String,
 }//end struct ConfigStore
 
 impl Default for ConfigStore {
@@ -47,6 +60,11 @@ impl Default for ConfigStore {
             csv_class_percent_enabled: true,
             xml_sieve_cols_enabled: true,
             personalized_config_name: "".to_string(),
+            csv_class_filter_class: "raw-filtered-as".to_string(),
+            csv_sample_id_header: "external-sample-id".to_string(),
+            xml_sample_id_header: "reference".to_string(),
+            xml_tags_to_include: Vec::new(),
+            xml_sample_closing_tag: "sample-result".to_string(),
         }//end struct initialization
     }//end default()
 }//end impl Default for ConfigStore

@@ -34,7 +34,7 @@ pub fn proc_csv_stat_cols(data: &Data, config: &ConfigStore) -> Result<SampleOut
         false => base_data,
         true => {
             let mut multi_filter_holding_vec = Vec::new();
-            let filter_col_idx = data.get_header_index("raw-filtered-as").unwrap_or_else(|| 5);
+            let filter_col_idx = data.get_header_index(&config.csv_class_filter_class).unwrap_or_else(|| { println!("Couldn't find class filter header \"{}\"!\nResorting to Default!", &config.csv_class_filter_class); return 5;});
             for filter in config.csv_class_filter_filters.iter() {
                 match data::get_filtered_records(&base_data, filter_col_idx,DataVal::String(filter.clone())) {
                     Ok(mut single_filtered_rows) => multi_filter_holding_vec.append(&mut single_filtered_rows),
@@ -48,10 +48,10 @@ pub fn proc_csv_stat_cols(data: &Data, config: &ConfigStore) -> Result<SampleOut
     };
     // split data up based on reading in column external-sample-id, prob index 2
     let split_data = {
-        let sample_id_col_idx = data.get_header_index("external-sample-id").unwrap_or_else(|| 2);
+        let sample_id_col_idx = data.get_header_index(&config.csv_sample_id_header).unwrap_or_else(|| {println!("Couldn't find sample id header \"{}\"!\nResorting to Default!",&config.csv_sample_id_header); return 2;});
         match data::get_split_records(&filtered_data,sample_id_col_idx) {
             Ok(split_data_ok) => split_data_ok,
-            Err(msg) => return Err(format!("Couldn't split records based on \"external-sample-id\", which we think has 0-based col index {}. More info below:\n{}",sample_id_col_idx,msg)),
+            Err(msg) => return Err(format!("Couldn't split records based on \"{}\", which we think has 0-based col index {}. More info below:\n{}",config.csv_sample_id_header,sample_id_col_idx,msg)),
         }//end matching whether we can get split data properly
     };
 
@@ -108,15 +108,15 @@ pub fn proc_csv_class_per(data: &Data, config: &ConfigStore) -> Result<SampleOut
     
     let base_data = data.get_records();
     let split_data = {
-        let sample_id_col_idx = data.get_header_index("external-sample-id").unwrap_or(2);
+        let sample_id_col_idx = data.get_header_index(&config.csv_sample_id_header).unwrap_or_else(|| {println!("Couldn't find sample id header \"{}\"!\nResorting to Default!",&config.csv_sample_id_header); return 2;});
         match data::get_split_records(&base_data, sample_id_col_idx) {
             Ok(split_data_ok) => split_data_ok,
-            Err(msg) => return Err(format!("Couldn't split records based on \"external-sample-id\", which we think has 0-based col index {}. More info below:\n{}",sample_id_col_idx,msg)),
+            Err(msg) => return Err(format!("Couldn't split records based on \"{}\", which we think has 0-based col index {}. More info below:\n{}",&config.csv_sample_id_header,sample_id_col_idx,msg)),
         }//end matching whether we can get split data properly
     };
 
     // use cor-filtered-as, expected col 6 for class
-    let class_idx = data.get_header_index("cor-filtered-as").unwrap_or(6);
+    let class_idx = data.get_header_index(&config.csv_class_filter_class).unwrap_or_else(|| {println!("Couldn't find class header \"{}\"!\nResorting to Default!",&config.csv_class_filter_class); return 6;});
 
     // (sample-id, vec<(class_name, count of class)>)
     let sample_class_totals: Vec<(&DataVal, Vec<(&DataVal, usize)>)> = {
@@ -191,7 +191,7 @@ pub fn proc_xml_sieve_data(data: &Data, config: &ConfigStore) -> Result<SampleOu
         data_format: Format::new().set_num_format("0.00"),
     };
 
-    let sample_id_col_idx = data.get_header_index("external-sample-id").unwrap_or(1);
+    let sample_id_col_idx = data.get_header_index(&config.xml_sample_id_header).unwrap_or_else(|| {println!("Couldn't find xml sample-id header \"{}\"!\nResorting to Default!",&config.xml_sample_id_header); return 0;});
     
     for (col_idx, header) in data.get_headers().iter().enumerate() {
         if col_idx <= sample_id_col_idx {continue;}

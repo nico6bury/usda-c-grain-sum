@@ -54,11 +54,16 @@ fn main() {
                 gui.start_wait();
                 match quick_xml::Reader::from_file(file_path.clone()) {
                     Ok(reader) => {
+                        let mut config = gui.get_config_store();
                         println!("We got the xml reader");
-                        let xml_data = Data::from_xml_reader(reader).unwrap();
-                        println!("We finished reading {} records from the xml file.", xml_data.get_records().len());
-                        input_xml_data = Some(xml_data);
-                        xml_input_file = Some(file_path);
+                        let mut tags_to_include = vec![config.xml_sample_id_header]; tags_to_include.append(&mut config.xml_tags_to_include);
+                        match Data::from_xml_reader(reader, Some(tags_to_include), Some(config.xml_sample_closing_tag.as_bytes())) {
+                            Ok(xml_data) => {
+                                println!("We finished reading {} records from the xml file.", xml_data.get_records().len());
+                                input_xml_data = Some(xml_data);
+                                xml_input_file = Some(file_path);
+                            }, Err(msg) => GUI::show_alert(&format!("Encountered an error while trying to parse xml data.\n{}",msg)),
+                        }//end matching whether we can parse xml data
                     },
                     Err(error) => GUI::show_alert(&format!("Error occured when trying to open xml file:\n{:?}",error)),
                 }//end matching whether we can open the xml file
