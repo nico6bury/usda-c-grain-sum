@@ -501,22 +501,3 @@ pub fn get_col_stdev_sngl(records: &Vec<&DataRow>, col_idx: usize) -> Result<f64
         Err(msg) => return Err(format!("While trying to get sum and count, we encountered an error:\n{}", msg)),
     }//end matching whether we could get sum and count
 }//end get_col_stdev_sngl()
-
-/// Rounds a f64 to a particular number of decimal places
-/// 
-/// # Examples
-/// 
-/// ```
-/// use usda_c_grain_sum::process::precision_f64;
-/// 
-/// assert_eq!(56.12, precision_f64(56.123456, 2));
-/// assert_eq!(56.123, precision_f64(56.123456, 3));
-/// assert_eq!(56.1235, precision_f64(56.123456, 4));
-/// assert_eq!(56.12346, precision_f64(56.123456, 5));
-/// ```
-pub fn precision_f64(x: f64, decimals: u32) -> f64 {
-    if x == 0. || decimals == 0 { 0. } else {
-        let y = 10i32.pow(decimals) as f64;
-        (x * y).round() / y
-    }
-}
