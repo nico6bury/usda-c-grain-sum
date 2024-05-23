@@ -1,17 +1,24 @@
 use std::path::PathBuf;
 
-use simple_excel_writer::{Column, Row, Workbook};
+use rust_xlsxwriter::{Format, Workbook, XlsxError};
 
 use crate::{config_store::ConfigStore, data::{self, Data, DataRow, DataVal}};
 
 /// A convenience struct, defined here simply to avoid
 /// returning complex tuples from some functions.
 /// 
+/// The primary intention is that data processing methods can
+/// export this as one format, and then functions which write
+/// to files can simply take this as input.
+/// 
 /// In sample_row, each element represents a sample_id,
 /// paired with a row of data corresponding to that sample
+/// 
+/// The data_format is the excel formatting that should ve used for each DataVal
 pub struct SampleOutput {
     pub headers: Vec<String>,
     pub sample_row: Vec<(String, Vec<DataVal>)>,
+    pub data_format: Format,
 }//end struct SampleOutput
 
 
@@ -52,6 +59,7 @@ pub fn proc_csv_stat_cols(data: &Data, config: &ConfigStore) -> Result<SampleOut
     let mut output = SampleOutput {
         headers: Vec::new(),
         sample_row: Vec::new(),
+        data_format: Format::new().set_num_format("0.00"),
     };
     // pre-fill output.headers with values
     for col_label in config.csv_stat_columns_columns.iter() {
@@ -148,6 +156,7 @@ pub fn proc_csv_class_per(data: &Data, config: &ConfigStore) -> Result<SampleOut
     let mut output = SampleOutput {
         headers: Vec::new(),
         sample_row: Vec::new(),
+        data_format: Format::new().set_num_format("0.0%"),
     };
 
     for class_option in all_class_options.iter() {
@@ -159,7 +168,7 @@ pub fn proc_csv_class_per(data: &Data, config: &ConfigStore) -> Result<SampleOut
         let mut this_sample_row = Vec::new();
         for class_name in all_class_options.iter() {
             let count_for_class = class_counts.iter().filter(|elem| (*elem.0).eq(class_name)).fold(0, |accum, elem| accum + elem.1);
-            let class_percent = count_for_class as f64 / all_classes_count as f64 * 100.;
+            let class_percent = count_for_class as f64 / all_classes_count as f64;// * 100.;
             this_sample_row.push(DataVal::Float(class_percent));
         }//end adding percent for each class option
         output.sample_row.push((sample_id.to_string(), this_sample_row));
@@ -179,6 +188,7 @@ pub fn proc_xml_sieve_data(data: &Data, config: &ConfigStore) -> Result<SampleOu
     let mut output = SampleOutput {
         headers: Vec::new(),
         sample_row: Vec::new(),
+        data_format: Format::new().set_num_format("0.00"),
     };
 
     let sample_id_col_idx = data.get_header_index("external-sample-id").unwrap_or(1);
@@ -206,85 +216,46 @@ pub fn proc_xml_sieve_data(data: &Data, config: &ConfigStore) -> Result<SampleOu
     return Ok(output);
 }//end proc_xml_sieve_data(data,config)
 
-/// Creates an excel workbook at the specified path, allowing it
-/// to be used in later functions.  
-/// The primary reason for this function to fail is the inability to
-/// convert output_path to a string. The most likely cause for that
-/// is invalid unicode characters.
-pub fn get_workbook(output_path: &PathBuf) -> Result<Workbook,String> {
-    match output_path.as_path().to_str() {
-        Some(path) => {
-            let wb = Workbook::create(path);
-            return Ok(wb);
-        },
-        None => Err(format!("Unabled to convert path {} to string when creating workbook.", output_path.to_string_lossy()))
-    }//end matching whether we can get the path correctly
+/// Creates an excel workbook, which can then be used in
+/// further funtions.
+pub fn get_workbook() -> Workbook {
+    Workbook::new()
 }//end get_workbook()
 
-/// Should be called after done working with a workbook.  
-/// It is not clear what the `Option<Vec<u8>>` refers to.
-pub fn close_workbook(workbook: &mut Workbook) -> Result<Option<Vec<u8>>,String> {
-    match workbook.close() {
-        Ok(a) => Ok(a),
-        Err(error) => Err(format!("Encountered an error while trying to close excel sheet!\n{:?}",error))
-    }//end matching result of closing workbook
+/// Should be called after done working with a workbook, for performance reasons.
+pub fn close_workbook(workbook: &mut Workbook, output_path: &PathBuf) -> Result<(),XlsxError> {
+    workbook.save(output_path)?;
+    Ok(())
 }//end close_workbook(workbook)
 
 /// Writes output from another function to a workbook that has already
 /// been created. After you're done calling this function (however many times),  
 /// make sure to call process::close_workbook().
-pub fn write_output_to_sheet(workbook: &mut Workbook, sheet_data: &SampleOutput, sheet_name: &str) -> Result<(),String> {
-    let mut sheet = workbook.create_sheet(sheet_name);
+pub fn write_output_to_sheet(workbook: &mut Workbook, sheet_data: &SampleOutput, sheet_name: &str) -> Result<(),XlsxError> {
+    let sheet = workbook.add_worksheet();//workbook.create_sheet(sheet_name);
+    sheet.set_name(sheet_name)?;
 
-    // add column for external-sample-id, plus other headers
-    sheet.add_column( Column { width: 18.0 } );
-    for header in sheet_data.headers.iter() {
-        // type conversions are needed because of underlying excel type
-        let int_size = i16::try_from(header.len()).unwrap_or(10);
-        let float_size = f32::try_from(int_size).unwrap_or(10.);
-        sheet.add_column( Column { width: float_size } );
-    }//end adding column for each header
+    // write the header row
+    let bold = Format::new().set_bold();
+    sheet.write_with_format(0,0,"external-sample-id", &bold)?;
+    for (index,header) in sheet_data.headers.iter().enumerate() {
+        let index = index as u16;
+        sheet.write_with_format(0,index + 1,header,&bold)?;
+    }//end adding column headers
 
-    // convert sheet data into rows
-    let header_row = {
-        let mut cur_row = Row::new();
-        cur_row.add_cell("external-sample-id");
-        for header in sheet_data.headers.iter() {
-            cur_row.add_cell(header.as_str());
-        }//end adding each header to row
-        cur_row
-    };
-    let excel_rows = {
-        let mut cur_rows: Vec<Row> = Vec::new();
-        for (sample_id, data_cells) in sheet_data.sample_row.iter() {
-            let mut row = Row::new();
-            row.add_cell(sample_id.as_str());
-            for data_cell in data_cells {
-                match data_cell {
-                    DataVal::Int(i) => {
-                        // need to do jank conversion due to limitations of trait impl
-                        match i32::try_from(*i) {
-                            Ok(i32_v) => {
-                                match f64::try_from(i32_v) {
-                                    Ok(f64_v) => row.add_cell(precision_f64(f64_v,0)),
-                                    Err(_) => row.add_cell(data_cell.to_string()),
-                                }}, Err(_) => row.add_cell(data_cell.to_string())
-                        }},
-                    DataVal::String(s) => row.add_cell(s.as_str()),
-                    DataVal::Float(f) => row.add_cell(precision_f64(*f, 2)),
-                }//end matching type of data_cell
-            }//end adding each data_cell to row
-            cur_rows.push(row);
-        }//end adding each row of data to cur_rows
-        cur_rows
-    };
-
-    if let Err(error) = workbook.write_sheet(&mut sheet, |sheet_writer| {
-        let sw = sheet_writer;
-        sw.append_row(header_row)?;
-        for row in excel_rows { sw.append_row(row)?; }
-        Ok(())
-    }) {return Err(format!("Encountered an error while trying to write to excel sheet {}!\n{}", sheet_name, error.to_string()))};
+    let mut row_num = 1;
+    for (sample_id, data_cells) in sheet_data.sample_row.iter() {
+        sheet.write(row_num, 0, sample_id)?;
+        for (col_offset, data_cell) in data_cells.iter().enumerate() {
+            let col_offset = col_offset as u16;
+            match data_cell {
+                DataVal::Float(f) => sheet.write_number_with_format(row_num,1 + col_offset,*f, &sheet_data.data_format)?,
+                DataVal::Int(i) => sheet.write_number_with_format(row_num,1 + col_offset,*i as f64, &sheet_data.data_format)?,
+                DataVal::String(s) => sheet.write(row_num,1 + col_offset,s)?,
+            };
+        }//end adding each data cell to output
+        row_num += 1;
+    }//end looping over each line of data to write
 
     Ok(())
 }//end write_output_to_sheet()
