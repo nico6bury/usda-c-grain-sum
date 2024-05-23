@@ -1,5 +1,5 @@
 use core::str;
-use std::{path::PathBuf, str::FromStr};
+use std::path::PathBuf;
 
 use usda_c_grain_sum::config_store::{self, ConfigStore};
 use usda_c_grain_sum::data::Data;
@@ -9,6 +9,7 @@ use gui::GUI;
 use crate::gui::InterfaceMessage;
 
 mod gui;
+
 
 fn main() {
     // setup gui
@@ -32,45 +33,46 @@ fn main() {
 
     while gui.wait() {
         match recv.recv() {
-            Some(InterfaceMessage::CSVInputFile(file_path)) if file_path != "None" => {
+            Some(InterfaceMessage::CSVInputFile(file_path)) => {
                 // try to get csv file
                 gui.start_wait();
-                let path_buf = PathBuf::from(file_path);
-                match csv::Reader::from_path(path_buf.clone()) {
+                match csv::Reader::from_path(file_path.clone()) {
                     Ok(reader) => {
                         println!("We got the csv reader");
                         let data = Data::from_csv_reader(reader).unwrap();
                         println!("We finished reading {} records from the csv", data.get_records().len());
                         input_csv_data = Some(data);
-                        csv_input_file = Some(path_buf);
+                        csv_input_file = Some(file_path);
                         // format_csv_sum(&data);
                     },
                     Err(_) => GUI::show_message("Couldn't get csv reader."),
                 }//end matching result of getting csv reader
                 gui.end_wait();
             },
-            Some(InterfaceMessage::XMLInputFile(file_path)) if file_path != "None" => {
+            Some(InterfaceMessage::XMLInputFile(file_path)) => {
                 // try to get the xml file
                 gui.start_wait();
-                let path_buf = PathBuf::from(file_path);
-                match quick_xml::Reader::from_file(path_buf.clone()) {
+                match quick_xml::Reader::from_file(file_path.clone()) {
                     Ok(reader) => {
+                        let mut config = gui.get_config_store();
                         println!("We got the xml reader");
-                        let xml_data = Data::from_xml_reader(reader).unwrap();
-                        println!("We finished reading {} records from the xml file.", xml_data.get_records().len());
-                        input_xml_data = Some(xml_data);
-                        xml_input_file = Some(path_buf);
+                        let mut tags_to_include = vec![config.xml_sample_id_header]; tags_to_include.append(&mut config.xml_tags_to_include);
+                        match Data::from_xml_reader(reader, Some(tags_to_include), Some(config.xml_sample_closing_tag.as_bytes())) {
+                            Ok(xml_data) => {
+                                println!("We finished reading {} records from the xml file.", xml_data.get_records().len());
+                                input_xml_data = Some(xml_data);
+                                xml_input_file = Some(file_path);
+                            }, Err(msg) => GUI::show_alert(&format!("Encountered an error while trying to parse xml data.\n{}",msg)),
+                        }//end matching whether we can parse xml data
                     },
                     Err(error) => GUI::show_alert(&format!("Error occured when trying to open xml file:\n{:?}",error)),
                 }//end matching whether we can open the xml file
                 gui.end_wait();
             },
-            Some(InterfaceMessage::OutputFile(file_path)) if file_path != "None" => {
+            Some(InterfaceMessage::OutputFile(file_path)) => {
                 // we got an output file
-                match PathBuf::from_str(&file_path) {
-                    Ok(path_buf) => {output_file = Some(path_buf); println!("Got output file path: \"{}\"", file_path);},
-                    Err(_) => println!("Somehow we couldn't get a path_buf even though the conversion is infallible. This should never happen."),
-                }//end matching whether we can get pathbuf
+                println!("Got output file path: \"{}\"", file_path.to_string_lossy());
+                output_file = Some(file_path);
             },
             Some(InterfaceMessage::ProcessSum) => {
                 let config_store = Some(gui.get_config_store());
@@ -81,63 +83,59 @@ fn main() {
                     let config = config_store.clone().unwrap();
                     gui.start_wait();
                     // actually call the processing functions
-                    match process::get_workbook(&output) {
-                        Ok(mut wb) => {
-                            // make sure we aren't asking user to see workbook if nothing finished successfully
-                            let mut successfully_processed_at_least_once = false;
-                            // (name of sheet, data to go in that sheet)
-                            let mut output_sheets: Vec<(String, SampleOutput)> = Vec::new();
-                            
-                            // get all data we might want, based on config
-                            if config.csv_stat_columns_enabled || config.csv_class_percent_enabled {
-                                let input_csv = input_csv_data.unwrap();
-                                if config.csv_stat_columns_enabled {
-                                    match process::proc_csv_stat_cols(&input_csv, &config) {
-                                        Ok(sample_output) => output_sheets.push(("CSV_Stats".to_string(), sample_output)),
-                                        Err(msg) => GUI::show_alert(&format!("An Error Occurred while trying to process CSV STAT Columns!\n{}",msg)),
-                                    }//end matching whether or not csv stat columns were processed successfully
-                                }//end if we should output csv stat columns
-                                if config.csv_class_percent_enabled {
-                                    match process::proc_csv_class_per(&input_csv, &config) {
-                                        Ok(sample_output) => output_sheets.push(("Class_Percents".to_string(), sample_output)),
-                                        Err(msg) => GUI::show_alert(&format!("An Error Occured while trying to process CSV Class Percent Columns!\n{}",msg)),
-                                    }//end matching whether or not csv class percents were processed successfully
-                                }//end if we should output class percents
-                                input_csv_data = Some(input_csv);
-                            }//end if we're doing csv stuff
-                            if config.xml_sieve_cols_enabled {
-                                let input_xml = input_xml_data.unwrap();
-                                match process::proc_xml_sieve_data(&input_xml, &config) {
-                                    Ok(sample_output) => output_sheets.push(("XML_Sieve_Data".to_string(),sample_output)),
-                                    Err(msg) => GUI::show_alert(&format!("An Error occured while trying to process XML Sieve Data!\n{}", msg)),
-                                }//end matching whether or not xml sieve stuff was processed correctly
-                                input_xml_data = Some(input_xml);
-                            }//end if we should output xml sieve cols
+                    let mut wb = process::get_workbook();
+                    // make sure we aren't asking user to see workbook if nothing finished successfully
+                    let mut successfully_processed_at_least_once = false;
+                    // (name of sheet, data to go in that sheet)
+                    let mut output_sheets: Vec<(String, SampleOutput)> = Vec::new();
+                    
+                    // get all data we might want, based on config
+                    if config.csv_stat_columns_enabled || config.csv_class_percent_enabled {
+                        let input_csv = input_csv_data.unwrap();
+                        if config.csv_stat_columns_enabled {
+                            match process::proc_csv_stat_cols(&input_csv, &config) {
+                                Ok(sample_output) => output_sheets.push(("CSV_Stats".to_string(), sample_output)),
+                                Err(msg) => GUI::show_alert(&format!("An Error Occurred while trying to process CSV STAT Columns!\n{}",msg)),
+                            }//end matching whether or not csv stat columns were processed successfully
+                        }//end if we should output csv stat columns
+                        if config.csv_class_percent_enabled {
+                            match process::proc_csv_class_per(&input_csv, &config) {
+                                Ok(sample_output) => output_sheets.push(("Class_Percents".to_string(), sample_output)),
+                                Err(msg) => GUI::show_alert(&format!("An Error Occured while trying to process CSV Class Percent Columns!\n{}",msg)),
+                            }//end matching whether or not csv class percents were processed successfully
+                        }//end if we should output class percents
+                        input_csv_data = Some(input_csv);
+                    }//end if we're doing csv stuff
+                    if config.xml_sieve_cols_enabled {
+                        let input_xml = input_xml_data.unwrap();
+                        match process::proc_xml_sieve_data(&input_xml, &config) {
+                            Ok(sample_output) => output_sheets.push(("XML_Sieve_Data".to_string(),sample_output)),
+                            Err(msg) => GUI::show_alert(&format!("An Error occured while trying to process XML Sieve Data!\n{}", msg)),
+                        }//end matching whether or not xml sieve stuff was processed correctly
+                        input_xml_data = Some(input_xml);
+                    }//end if we should output xml sieve cols
 
-                            for (sheet_name, sheet_data) in output_sheets {
-                                match process::write_output_to_sheet(&mut wb, &sheet_data, &sheet_name) {
-                                    Ok(_) => successfully_processed_at_least_once = true,
-                                    Err(msg) => GUI::show_alert(&format!("Ecountered an error while attempting to write data to worksheet {}.\n{}", sheet_name, msg)),
-                                }//end matching whether writing to sheet was a success
-                            }//end writing data from each output sheet
+                    for (sheet_name, sheet_data) in output_sheets {
+                        match process::write_output_to_sheet(&mut wb, &sheet_data, &sheet_name) {
+                            Ok(_) => successfully_processed_at_least_once = true,
+                            Err(msg) => GUI::show_alert(&format!("Ecountered an error while attempting to write data to worksheet {}.\n{}", sheet_name, msg)),
+                        }//end matching whether writing to sheet was a success
+                    }//end writing data from each output sheet
 
-                            if let Err(error) = process::close_workbook(&mut wb) {GUI::show_alert(&format!("Encountered an error while attempting to write data to worksheet.\n{}",error));}
+                    if let Err(error) = process::close_workbook(&mut wb, &output) {GUI::show_alert(&format!("Encountered an error while attempting to write data to worksheet.\n{}",error));}
 
-                            if successfully_processed_at_least_once {
-                                println!("Finished outputing processed file.");
-                                gui.clear_output_text();
-                                if GUI::show_yes_no_message("Processing complete. Would you like to open the folder where the output file is located?") {
-                                    opener::reveal(output).unwrap();
-                                }//end if user wants to open folder
-                                input_csv_data = None;
-                                output_file = None;
-                                input_xml_data = None;
-                            } else {
-                                GUI::show_alert("It seems that a processing routine was run without any successful outputs.\nThis shouldn't happen...");
-                            }//end else we never managed to process anything
-                        },
-                        Err(msg) => GUI::show_message(&format!("Encountered errors while creating output workbook:\n{}",msg)),
-                    }//end matching whether or not we can successfully get the workbook object
+                    if successfully_processed_at_least_once {
+                        println!("Finished outputing processed file.");
+                        gui.clear_output_text();
+                        if GUI::show_yes_no_message("Processing complete. Would you like to open the folder where the output file is located?") {
+                            opener::reveal(output).unwrap();
+                        }//end if user wants to open folder
+                        input_csv_data = None;
+                        output_file = None;
+                        input_xml_data = None;
+                    } else {
+                        GUI::show_alert("It seems that a processing routine was run without any successful outputs.\nThis shouldn't happen...");
+                    }//end else we never managed to process anything
                     gui.end_wait();
                 }//end if all our data is valid for the output we want to make
             },
