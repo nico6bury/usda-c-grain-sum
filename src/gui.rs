@@ -589,7 +589,7 @@ impl GUI {
             }//end moving for closure
         });
 
-        let mut config_preset_frm = Frame::default()
+        let config_preset_frm = Frame::default()
             .with_pos(config_label.x(), config_label.y() + config_label.h())
             .with_size(config_label.w(),config_label.h())
             .with_label("No Named Preset Active")
