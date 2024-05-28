@@ -140,10 +140,11 @@ impl GUI {
         let version = option_env!("CARGO_PKG_VERSION");
         let format_des = time::macros::format_description!("[month repr:long] [year]");
         let date = compile_time::date!();
+        let date_str = date.format(format_des).unwrap_or(String::from("unknown compile time"));
         let mut output = String::new();
-        output.push_str("USDA-ARS Manhattan, KS\tC-Grain Summarizer\n");
-        output.push_str(&format!("{}\tv{}\t\tNicholas Sixbury/Dan Brabec\n", date.format(format_des).unwrap_or(String::from("unknown compile time")) ,version.unwrap_or("unknown version")));
-        output.push_str("Processes CSV and XML Data from C-Grain into Sum Files\n");
+        output.push_str(&format!("USDA C-Grain Sum\tv{}\t{}\n",version.unwrap_or("unknown version"),date_str));
+        output.push_str("Processes CSV and XML Data from C-Grain into Sum Files\n\n");
+        output.push_str(&format!("Nicholas Sixbury/Dan Brabec\tUSDA Manhattan,KS\n"));
         return output;
     }//end default_header_info()
 
@@ -319,7 +320,7 @@ impl GUI {
         header_group.add_resizable(&header_box);
         header_box.set_buffer(header_buf.clone());
         header_buf.append(&GUI::default_header_info());
-        header_box.set_scrollbar_align(Align::Right);
+        header_box.set_scrollbar_align(Align::empty());
 
         // set up group with input and output controls, processing stuff
         let mut io_controls_group = Group::default()
