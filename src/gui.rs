@@ -160,7 +160,7 @@ impl GUI {
 
     /// Simply displays a message to the user.
     pub fn show_message(txt: &str) {
-        dialog::message(0, 0, txt);
+        dialog::message_default(txt);
     }//end show_message(txt)
 
     /// Simply displays an error message to the user.
@@ -171,7 +171,7 @@ impl GUI {
     /// Asks user a yes or no question. Returns true if
     /// user didn't close the dialog and clicked yes.
     pub fn show_yes_no_message(txt: &str) -> bool {
-        match dialog::choice2(0, 0, txt, "yes", "no", "") {
+        match dialog::choice2_default(txt, "yes", "no", "") {
             Some(index) => index == 0,
             None => false,
         }//end matching dialog result
@@ -254,12 +254,12 @@ impl GUI {
                 new_header.push_str("Configuration for ");
                 new_header.push_str(&config.personalized_config_name);
                 self.ux_header_buf.set_text(&new_header);
-                if config.personalized_config_name.eq("Scott") { self.ux_config_group.set_color(Color::from_rgb(220,239,220)) }
-                if config.personalized_config_name.eq("Rhett") { self.ux_config_group.set_color(Color::from_rgb(220,220,239)) }
+                // if config.personalized_config_name.eq("Scott") { self.ux_config_group.set_color(Color::from_rgb(220,239,220)) }
+                // if config.personalized_config_name.eq("Rhett") { self.ux_config_group.set_color(Color::from_rgb(220,220,239)) }
             },
             _ => {
                 self.ux_header_buf.set_text(&GUI::default_header_info());
-                self.ux_config_group.set_color(Color::Light1);
+                // self.ux_config_group.set_color(Color::Light1);
             },
         }//end matching personalized configuration stuff
         self.ux_config_group.redraw();
@@ -556,6 +556,7 @@ impl GUI {
             .with_pos(io_controls_group.x() + io_controls_group.w(), io_controls_group.y())
             .with_size(tile_group.width() - io_controls_group.width(), tile_group.height() - header_group.height());
         config_group.end();
+        config_group.set_color(Color::from_rgb(220,239,220));
         tile_group.add(&config_group);
         
         let mut config_label = Frame::default()
