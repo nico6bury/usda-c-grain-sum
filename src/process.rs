@@ -11,14 +11,18 @@ use crate::{config_store::ConfigStore, data::{self, Data, DataRow, DataVal}};
 /// export this as one format, and then functions which write
 /// to files can simply take this as input.
 /// 
+/// Each element of headers corresponds to the name of
+/// a column header, and the number of decimal places
+/// that should be displayed for values in that header.
+/// Each header element also contains a boolean that
+/// says whether that column contains percent values.
+/// True for percents, false for regular numbers.
+/// 
 /// In sample_row, each element represents a sample_id,
 /// paired with a row of data corresponding to that sample
-/// 
-/// The data_format is the excel formatting that should ve used for each DataVal
 pub struct SampleOutput {
-    pub headers: Vec<String>,
+    pub headers: Vec<(String, usize, bool)>,
     pub sample_row: Vec<(String, Vec<DataVal>)>,
-    pub data_format: Format,
 }//end struct SampleOutput
 
 
@@ -59,12 +63,16 @@ pub fn proc_csv_stat_cols(data: &Data, config: &ConfigStore) -> Result<SampleOut
     let mut output = SampleOutput {
         headers: Vec::new(),
         sample_row: Vec::new(),
-        data_format: Format::new().set_num_format("0.00"),
     };
     // pre-fill output.headers with values
     for col_label in config.csv_stat_columns_columns.iter() {
-        output.headers.push(format!("Avg {}", col_label));
-        output.headers.push(format!("Std {}", col_label));
+        let decimal_places = match col_label.as_str() {
+            "Weight" | "Light" | "Saturation" => 4,
+            "Hue" | "Red" | "Green" | "Blue" => 1,
+            _ => 2,
+        };//end matching col_label to decimal places
+        output.headers.push((format!("Avg {}", col_label),decimal_places,false));
+        output.headers.push((format!("Std {}", col_label),decimal_places,false));
     }//end adding each header we'll use to output
 
     // process data for each group, then add to output
@@ -156,11 +164,11 @@ pub fn proc_csv_class_per(data: &Data, config: &ConfigStore) -> Result<SampleOut
     let mut output = SampleOutput {
         headers: Vec::new(),
         sample_row: Vec::new(),
-        data_format: Format::new().set_num_format("0.0%"),
+        // data_format: Format::new().set_num_format("0.0%"),
     };
 
     for class_option in all_class_options.iter() {
-        output.headers.push(format!("%{}",class_option.to_string()));
+        output.headers.push((format!("%{}",class_option.to_string()), 1, true));
     }//end adding each class option as a header
 
     for (sample_id, class_counts) in sample_class_totals {
@@ -188,14 +196,14 @@ pub fn proc_xml_sieve_data(data: &Data, config: &ConfigStore) -> Result<SampleOu
     let mut output = SampleOutput {
         headers: Vec::new(),
         sample_row: Vec::new(),
-        data_format: Format::new().set_num_format("0.00"),
+        // data_format: Format::new().set_num_format("0.00"),
     };
 
     let sample_id_col_idx = data.get_header_index(&config.xml_sample_id_header).unwrap_or_else(|| {println!("Couldn't find xml sample-id header \"{}\"!\nResorting to Default!",&config.xml_sample_id_header); return 0;});
     
     for (col_idx, header) in data.get_headers().iter().enumerate() {
         if col_idx <= sample_id_col_idx {continue;}
-        output.headers.push(header.to_string());
+        output.headers.push((header.to_string(),2,false));
     }//end filling output with headers from sample_id_col_idx onwards
 
     // just add the raw data to output, we assume it was processed already
@@ -240,17 +248,30 @@ pub fn write_output_to_sheet(workbook: &mut Workbook, sheet_data: &SampleOutput,
     sheet.write_with_format(0,0,"external-sample-id", &bold)?;
     for (index,header) in sheet_data.headers.iter().enumerate() {
         let index = index as u16;
-        sheet.write_with_format(0,index + 1,header,&bold)?;
+        sheet.write_with_format(0,index + 1,header.0.clone(),&bold)?;
     }//end adding column headers
 
+    // create formats for each header row
+    let mut formats = Vec::new();
+    for (_,decimals,is_percent) in sheet_data.headers.iter() {
+        let mut num_format = String::from("0.");
+        for _ in 0..*decimals {num_format.push_str("0")}
+        if *is_percent {num_format.push_str("%")}
+        let this_format = Format::new().set_num_format(num_format);
+        formats.push(this_format);
+    }//end creating format for each header
+
+    let default_format = Format::new().set_num_format("0.00");
     let mut row_num = 1;
     for (sample_id, data_cells) in sheet_data.sample_row.iter() {
         sheet.write(row_num, 0, sample_id)?;
         for (col_offset, data_cell) in data_cells.iter().enumerate() {
+            // let col_idx = col_offset;
+            let format = formats.get(col_offset).unwrap_or(&default_format);
             let col_offset = col_offset as u16;
             match data_cell {
-                DataVal::Float(f) => sheet.write_number_with_format(row_num,1 + col_offset,*f, &sheet_data.data_format)?,
-                DataVal::Int(i) => sheet.write_number_with_format(row_num,1 + col_offset,*i as f64, &sheet_data.data_format)?,
+                DataVal::Float(f) => sheet.write_number_with_format(row_num,1 + col_offset,*f, format)?,
+                DataVal::Int(i) => sheet.write_number_with_format(row_num,1 + col_offset,*i as f64, format)?,
                 DataVal::String(s) => sheet.write(row_num,1 + col_offset,s)?,
             };
         }//end adding each data cell to output

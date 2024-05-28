@@ -110,6 +110,9 @@ pub struct GUI {
     /// that are pulled from sieve data in the xml file. If no
     /// xml file is loaded, then this is meaningless.
     ux_cf_xml_sieve_chck: CheckButton,
+    /// The frame holding the text displayed to indicate
+    /// which named setting preset is currently active.
+    ux_cf_setting_preset_buf: Frame,
     /// Stores the last config_store we've got.  
     /// It is initialized as ConfigStore::default().  
     /// It should be noted that this field is not updated automatically
@@ -140,10 +143,11 @@ impl GUI {
         let version = option_env!("CARGO_PKG_VERSION");
         let format_des = time::macros::format_description!("[month repr:long] [year]");
         let date = compile_time::date!();
+        let date_str = date.format(format_des).unwrap_or(String::from("unknown compile time"));
         let mut output = String::new();
-        output.push_str("USDA-ARS Manhattan, KS\tC-Grain Summarizer\n");
-        output.push_str(&format!("{}\tv{}\t\tNicholas Sixbury/Dan Brabec\n", date.format(format_des).unwrap_or(String::from("unknown compile time")) ,version.unwrap_or("unknown version")));
-        output.push_str("Processes CSV and XML Data from C-Grain into Sum Files\n");
+        output.push_str(&format!("USDA C-Grain Sum\tv{}\t{}\n",version.unwrap_or("unknown version"),date_str));
+        output.push_str("Processes CSV and XML Data from C-Grain into Sum Files\n\n");
+        output.push_str(&format!("Nicholas Sixbury/Dan Brabec\tUSDA Manhattan,KS\n"));
         return output;
     }//end default_header_info()
 
@@ -160,7 +164,7 @@ impl GUI {
 
     /// Simply displays a message to the user.
     pub fn show_message(txt: &str) {
-        dialog::message(0, 0, txt);
+        dialog::message_default(txt);
     }//end show_message(txt)
 
     /// Simply displays an error message to the user.
@@ -171,7 +175,7 @@ impl GUI {
     /// Asks user a yes or no question. Returns true if
     /// user didn't close the dialog and clicked yes.
     pub fn show_yes_no_message(txt: &str) -> bool {
-        match dialog::choice2(0, 0, txt, "yes", "no", "") {
+        match dialog::choice2_default(txt, "yes", "no", "") {
             Some(index) => index == 0,
             None => false,
         }//end matching dialog result
@@ -250,16 +254,16 @@ impl GUI {
 
         match config.personalized_config_name.as_str() {
             "Scott" | "Rhett"=> {
-                let mut new_header = GUI::default_header_info();
-                new_header.push_str("Configuration for ");
-                new_header.push_str(&config.personalized_config_name);
+                let new_header = GUI::default_header_info();
                 self.ux_header_buf.set_text(&new_header);
-                if config.personalized_config_name.eq("Scott") { self.ux_config_group.set_color(Color::from_rgb(220,239,220)) }
-                if config.personalized_config_name.eq("Rhett") { self.ux_config_group.set_color(Color::from_rgb(220,220,239)) }
+                self.ux_cf_setting_preset_buf.set_label(&format!("Config Preset for {}",&config.personalized_config_name));
+                // if config.personalized_config_name.eq("Scott") { self.ux_config_group.set_color(Color::from_rgb(220,239,220)) }
+                // if config.personalized_config_name.eq("Rhett") { self.ux_config_group.set_color(Color::from_rgb(220,220,239)) }
             },
             _ => {
                 self.ux_header_buf.set_text(&GUI::default_header_info());
-                self.ux_config_group.set_color(Color::Light1);
+                self.ux_cf_setting_preset_buf.set_label("No Named Preset Active");
+                // self.ux_config_group.set_color(Color::Light1);
             },
         }//end matching personalized configuration stuff
         self.ux_config_group.redraw();
@@ -279,7 +283,7 @@ impl GUI {
     /// various widgets and UI settings.
     pub fn initialize() -> GUI {
         let c_grain_app = app::App::default();
-        let mut main_window = window::Window::default().with_size(700, 325).with_label("USDA C-Grain Summarizer");
+        let mut main_window = window::Window::default().with_size(700, 350).with_label("USDA C-Grain Summarizer");
         main_window.end();
 
         let config_ref = Rc::from(RefCell::from(ConfigStore::default()));
@@ -319,7 +323,7 @@ impl GUI {
         header_group.add_resizable(&header_box);
         header_box.set_buffer(header_buf.clone());
         header_buf.append(&GUI::default_header_info());
-        header_box.set_scrollbar_align(Align::Right);
+        header_box.set_scrollbar_align(Align::empty());
 
         // set up group with input and output controls, processing stuff
         let mut io_controls_group = Group::default()
@@ -546,7 +550,7 @@ impl GUI {
         let mut process_file_btn = Button::default()
             .with_label("Process Data")
             .with_pos(output_file_btn.x() + 60, output_file_btn.y() + output_file_btn.h() + 10)
-            .with_size(250, 50);
+            .with_size(250, 75);
         process_file_btn.emit(s.clone(), InterfaceMessage::ProcessSum);
         process_file_btn.set_frame(FrameType::PlasticDownBox);
         io_controls_group.add_resizable(&process_file_btn);
@@ -556,12 +560,13 @@ impl GUI {
             .with_pos(io_controls_group.x() + io_controls_group.w(), io_controls_group.y())
             .with_size(tile_group.width() - io_controls_group.width(), tile_group.height() - header_group.height());
         config_group.end();
+        config_group.set_color(Color::from_rgb(220,239,220));
         tile_group.add(&config_group);
         
         let mut config_label = Frame::default()
             .with_pos(config_group.x(), config_group.y() + 10)
             .with_size(config_group.width(), 20)
-            .with_label("Configuration Options")
+            .with_label("Configuration Settings")
             .with_align(Align::Center);
         config_group.add(&config_label);
         
@@ -584,8 +589,15 @@ impl GUI {
             }//end moving for closure
         });
 
+        let config_preset_frm = Frame::default()
+            .with_pos(config_label.x(), config_label.y() + config_label.h())
+            .with_size(config_label.w(),config_label.h())
+            .with_label("No Named Preset Active")
+            .with_align(Align::Center);
+        config_group.add(&config_preset_frm);
+
         let mut class_filter_chck = CheckButton::default()
-            .with_pos(config_label.x() + cf_padding, config_label.y() + config_label.h() + cf_padding)
+            .with_pos(config_preset_frm.x() + cf_padding, config_preset_frm.y() + config_preset_frm.h() + cf_padding)
             .with_size(180,cf_chck_height)
             .with_label("Filter to Classification of:");
         class_filter_chck.set_checked(true);
@@ -696,6 +708,7 @@ impl GUI {
             ux_cf_stat_cols_buf: stat_cols_buf,
             ux_cf_class_perc_chck: class_perc_chck,
             ux_cf_xml_sieve_chck: xml_sieve_chck,
+            ux_cf_setting_preset_buf: config_preset_frm,
             config_store: config_ref,
         }//end struct construction
     }
