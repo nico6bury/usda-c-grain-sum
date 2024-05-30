@@ -777,7 +777,7 @@ impl GUI {
         dialog_box.wrap_mode(fltk::text::WrapMode::AtBounds, 1);
         dialog_box.set_scrollbar_align(Align::Right);
         dialog_box.set_scrollbar_size(10);
-        dialog_buf.set_text("Testing Testing\n Testing Testing\n Testing\n Testing\n Testing Testing");
+        dialog_buf.set_text("");
         dialog_box.set_buffer(dialog_buf);
         dialog_group.add(&dialog_box);
 
@@ -788,22 +788,15 @@ impl GUI {
             .with_align(Align::Right)
             .with_type(FlexType::Row);
         dialog_btns.end();
-        // dialog_btns.set_color(Color::Green);
         dialog_btns.set_frame(FrameType::FlatBox);
         dialog_group.add(&dialog_btns);
-
-        let test_button1 = Button::default().with_label("number one").with_size(40,40);
-        dialog_btns.add(&test_button1);
-        let test_button2 = Button::default().with_label("number two").with_size(40,40);
-        dialog_btns.add(&test_button2);
-        let test_button3 = Button::default().with_label("number three").with_size(40,40);
-        dialog_btns.add(&test_button3);
 
         // set frame type for borders between sections, make sure to use box type
         header_group.set_frame(FrameType::GtkUpBox);
         io_controls_group.set_frame(FrameType::GtkUpBox);
         config_group.set_frame(FrameType::GtkUpBox);
         dialog_group.set_frame(FrameType::GtkUpBox);
+        dialog_group.deactivate();
 
         main_window.make_resizable(true);
         // callback for window occurs when user tries to close it
