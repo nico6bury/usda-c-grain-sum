@@ -916,7 +916,7 @@ impl GUI {
         let mut txt_buf = match txt.buffer() {
             Some(buf) => buf,
             None => {
-                return Err(format!("For some reason we couldn't access teh textbuffer. Oops. This should never happen."));
+                return Err(format!("For some reason we couldn't access the textbuffer. Oops. This should never happen."));
             }};
         // set up dialog with all the settings
         let mut dialog = dialog::NativeFileChooser::new(dialog_type);
