@@ -356,7 +356,7 @@ impl GUI {
             "Scott" | "Rhett"=> {
                 let new_header = GUI::default_header_info();
                 self.ux_header_buf.set_text(&new_header);
-                self.ux_cf_setting_preset_buf.set_label(&format!("Config Preset for {}",&config.personalized_config_name));
+                self.ux_cf_setting_preset_buf.set_label(&format!("Configuration for {}",&config.personalized_config_name));
                 // if config.personalized_config_name.eq("Scott") { self.ux_config_group.set_color(Color::from_rgb(220,239,220)) }
                 // if config.personalized_config_name.eq("Rhett") { self.ux_config_group.set_color(Color::from_rgb(220,220,239)) }
             },
