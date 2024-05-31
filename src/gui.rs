@@ -1,6 +1,6 @@
 use std::{cell::RefCell, path::PathBuf, rc::Rc};
 
-use fltk::{app::{self, App, Receiver, Sender}, button::{Button, CheckButton}, dialog, enums::{Align, Color, Event, FrameType}, frame::Frame, group::{Group, Tile}, prelude::{DisplayExt, GroupExt, WidgetBase, WidgetExt, WindowExt}, text::{TextBuffer, TextDisplay, TextEditor}, window::{self, Window}};
+use fltk::{app::{self, App, Receiver, Sender}, button::{Button, CheckButton}, dialog::{self, BeepType}, enums::{Align, Color, Event, FrameType}, frame::Frame, group::{Flex, FlexType, Group, Tile}, prelude::{ButtonExt, DisplayExt, GroupExt, WidgetBase, WidgetExt, WindowExt}, text::{TextBuffer, TextDisplay, TextEditor}, window::{self, Window}};
 
 use usda_c_grain_sum::config_store::ConfigStore;
 
@@ -69,16 +69,24 @@ pub struct GUI {
     /// Message Receiver, we give a reference to this to main, 
     /// allowing it to receive our messages.
     msg_receiver: Receiver<InterfaceMessage>,
-    /// Buffer holding text in the header display
-    ux_header_buf: TextBuffer,
     /// The group holding all the configuration controls.  
-    /// This is stored here in order to set the appearance in
-    /// response to certain presets.
+    /// This is stored here in order to disable during dialog.
     ux_config_group: Group,
+    /// The group holding all the input and output controls.
+    /// This is stored here in order to disable during dialog
+    ux_io_controls_group: Group,
+    /// The group holding the custom dialog controls.
+    /// This is stored here to enable during dialog
+    ux_dialog_group: Group,
+    /// The display which shows dialog messages to the user.
+    ux_dialog_box: TextDisplay,
+    /// The flex which holds buttons corresponding to the
+    /// dialog choices available to a user.
+    ux_dialog_btns_flx: Flex,
     /// Buffer holding the filename/path for input csv file.
-    ux_input_csv_txt: Rc<RefCell<TextEditor>>,
+    ux_input_csv_txt: Rc<RefCell<TextDisplay>>,
     /// Buffer holding the filename/path for input xml file.
-    ux_input_xml_txt: Rc<RefCell<TextEditor>>,
+    ux_input_xml_txt: Rc<RefCell<TextDisplay>>,
     /// Buffer holding the filename/path for the output file.
     ux_output_file_txt: Rc<RefCell<TextEditor>>,
     /// Check button in config section.  
@@ -123,7 +131,7 @@ pub struct GUI {
     config_store: Rc<RefCell<ConfigStore>>,
 }//end struct GUI
 
-// #[allow(dead_code)]
+#[allow(dead_code)]
 impl GUI {
     /// Returns a clone of the receiver so you can
     /// react to messages sent by gui.
@@ -131,24 +139,22 @@ impl GUI {
         return self.msg_receiver.clone();
     }//end get_receiver(self)
 
-    /// Constructs the String holding default header information, aside from
-    /// config preset information. This function builds in the pkg version,
-    /// the time at which the program was compiled, and some other common
-    /// header information.
+    /// Creates formatted strings holding the version
+    /// number and date this applicaiton was compiled.
     /// 
-    /// This function was originally created in order to make it easier to
-    /// add or remove text from the header in response to configuration preset
-    /// changes.
-    fn default_header_info() -> String {
+    /// Used to build the header.
+    fn header_version_day() -> (String,String) {
         let version = option_env!("CARGO_PKG_VERSION");
         let format_des = time::macros::format_description!("[month repr:long] [year]");
         let date = compile_time::date!();
         let date_str = date.format(format_des).unwrap_or(String::from("unknown compile time"));
-        let mut output = String::new();
-        output.push_str(&format!("USDA C-Grain Sum\tv{}\t{}\n",version.unwrap_or("unknown version"),date_str));
-        output.push_str("Processes CSV and XML Data from C-Grain into Sum Files\n\n");
-        output.push_str(&format!("Nicholas Sixbury/Dan Brabec\tUSDA Manhattan,KS\n"));
-        return output;
+        let version_str = format!("{}",version.unwrap_or("unknown version"));
+        // let mut output = String::new();
+        // output.push_str(&format!("USDA C-Grain Sum\tv{}\t{}\n",version.unwrap_or("unknown version"),date_str));
+        // output.push_str("Processes CSV and XML Data from C-Grain into Sum Files\n\n");
+        // output.push_str(&format!("Nicholas Sixbury/Dan Brabec\tUSDA Manhattan,KS\n"));
+        // return output;
+        return (version_str, date_str);
     }//end default_header_info()
 
     /// Closes the application.
@@ -162,16 +168,19 @@ impl GUI {
         self.app.wait()
     }//end wait(&self)
 
+    #[deprecated(since="0.3.4", note="please use integrated_dialog_message instead")]
     /// Simply displays a message to the user.
     pub fn show_message(txt: &str) {
         dialog::message_default(txt);
     }//end show_message(txt)
 
+    #[deprecated(since="0.3.4", note="please use integrated_dialog_alert instead")]
     /// Simply displays an error message to the user.
     pub fn show_alert(txt: &str) {
         dialog::alert_default(txt);
     }//end show_alert(txt)
 
+    // #[deprecated(since="0.3.4", note="please use integrated_dialog_yes_no instead")]
     /// Asks user a yes or no question. Returns true if
     /// user didn't close the dialog and clicked yes.
     pub fn show_yes_no_message(txt: &str) -> bool {
@@ -181,6 +190,7 @@ impl GUI {
         }//end matching dialog result
     }//end show_yes_no_message
 
+    #[deprecated(since="0.3.4", note="please use integrated_dialog_message_choice instead")]
     /// Asks the user to choose between three options.  
     /// If this is successful, returns index of choice, 0, 1, or 2
     pub fn show_three_choice(txt: &str, c0: &str, c1: &str, c2: &str) -> Option<u8> {
@@ -194,6 +204,96 @@ impl GUI {
             None => None,
         }//end matching dialog result
     }//end show_three_choice()
+
+    /// Resets group activations to ensure user can
+    /// interact with gui after dialog has eneded.
+    pub fn clear_integrated_dialog(&mut self) {
+        self.ux_io_controls_group.activate();
+        self.ux_config_group.activate();
+        self.ux_dialog_group.deactivate();
+        self.ux_dialog_box.buffer().unwrap_or_else(|| TextBuffer::default()).set_text("");
+        self.ux_dialog_btns_flx.clear();
+        self.ux_dialog_btns_flx.redraw();
+    }//end clear_integrated_dialog()
+
+    /// Deactivates most of the gui so that user
+    /// is forced to interact with dialog
+    fn activate_dialog(&mut self) {
+        self.ux_io_controls_group.deactivate();
+        self.ux_config_group.deactivate();
+        self.ux_dialog_group.activate();
+    }//end activate_dialog()
+
+    /// Creates a modal dialog message that is integrated into
+    /// the main window of the application.
+    pub fn integrated_dialog_message(&mut self, txt: &str) {
+        self.integrated_dialog_message_choice(txt, vec!["Ok"]);
+    }//end integrated_dialog_message()
+
+    /// Creates a modal error message that is integrated into the
+    /// main window of the application.
+    pub fn integrated_dialog_alert(&mut self, txt: &str) {
+        dialog::beep(BeepType::Error);
+        self.integrated_dialog_message(txt);
+    }//end integrated_dialog_alert()
+
+    /// Creates a modal dialog message which forces the user
+    /// to ask a yes or no question.
+    pub fn integrated_dialog_yes_no(&mut self, txt: &str) -> bool {
+        match self.integrated_dialog_message_choice(txt, vec!["yes","no"]) {
+            Some(idx) => idx == 0,
+            None => false,
+        }//end matching whether selection was yes or no
+    }//end integrated_dialog_yes_no()
+
+    /// Creates a modal dialog message which forces the user to choose
+    /// between the options specified.  
+    /// The buttons for options have auto-generated sizes, so if there are too
+    /// many options, or they are too wordy, text might not be readable.  
+    /// If this function is passed an empty vec for options, it will immediately
+    /// return None. Without any options to end dialog, the user wouldn't be able
+    /// to continue.
+    pub fn integrated_dialog_message_choice(&mut self, txt: &str, options: Vec<&str>) -> Option<usize> {
+        self.activate_dialog();
+        // input validation for options being empty
+        if options.len() == 0 {return None;}
+        // update text based on parameter
+        let mut dialog_buffer = self.ux_dialog_box.buffer().unwrap_or_else(|| TextBuffer::default());
+        dialog_buffer.set_text(txt);
+        self.ux_dialog_box.set_buffer(dialog_buffer);
+        // update buttons based on type
+        let button_pressed_index = Rc::from(RefCell::from(None));
+
+        self.ux_dialog_btns_flx.clear();
+        for (idx, option) in options.iter().enumerate() {
+            let mut button = Button::default().with_label(option);
+            button.set_frame(FrameType::GtkRoundDownFrame);
+            button.set_down_frame(FrameType::GtkRoundDownFrame);
+            button.set_color(Color::from_rgb(245,245,245));
+            button.set_selection_color(Color::from_rgb(224,255,255));
+            button.set_callback({
+                let button_index_ref = (&button_pressed_index).clone();
+                move |_| {
+                    let mut button_index = button_index_ref.borrow_mut();
+                    *button_index = Some(idx);
+                }//end closure
+            });
+            self.ux_dialog_btns_flx.add(&button);
+        }//end creating each button and handler
+        self.ux_dialog_btns_flx.redraw();
+
+        // wait for user to click a button
+        let button_pressed_index_ref = (&button_pressed_index).clone();
+        let mut button_index_to_return = None;
+        while self.app.wait() {
+            if let Ok(pushed_index) = button_pressed_index_ref.try_borrow() {
+                if pushed_index.is_some() {button_index_to_return = pushed_index.clone(); break;}
+            }
+        }//end continuing application while we wait for button to be pressed
+
+        self.clear_integrated_dialog();
+        return button_index_to_return;
+    }//end integrated_dialog_message(self, txt)
 
     /// Returns the text shown in the output file box.
     /// This box is meant to display the file name (without the directory)
@@ -254,14 +354,14 @@ impl GUI {
 
         match config.personalized_config_name.as_str() {
             "Scott" | "Rhett"=> {
-                let new_header = GUI::default_header_info();
-                self.ux_header_buf.set_text(&new_header);
-                self.ux_cf_setting_preset_buf.set_label(&format!("Config Preset for {}",&config.personalized_config_name));
+                // let new_header = GUI::default_header_info();
+                // self.ux_header_buf.set_text(&new_header);
+                self.ux_cf_setting_preset_buf.set_label(&format!("Configuration for {}",&config.personalized_config_name));
                 // if config.personalized_config_name.eq("Scott") { self.ux_config_group.set_color(Color::from_rgb(220,239,220)) }
                 // if config.personalized_config_name.eq("Rhett") { self.ux_config_group.set_color(Color::from_rgb(220,220,239)) }
             },
             _ => {
-                self.ux_header_buf.set_text(&GUI::default_header_info());
+                // self.ux_header_buf.set_text(&GUI::default_header_info());
                 self.ux_cf_setting_preset_buf.set_label("No Named Preset Active");
                 // self.ux_config_group.set_color(Color::Light1);
             },
@@ -283,7 +383,7 @@ impl GUI {
     /// various widgets and UI settings.
     pub fn initialize() -> GUI {
         let c_grain_app = app::App::default();
-        let mut main_window = window::Window::default().with_size(700, 350).with_label("USDA C-Grain Summarizer");
+        let mut main_window = window::Window::default().with_size(700, 435).with_label("USDA C-Grain Summarizer");
         main_window.end();
 
         let config_ref = Rc::from(RefCell::from(ConfigStore::default()));
@@ -292,6 +392,9 @@ impl GUI {
         let io_btn_height = 30;
         let io_btn_padding = 10;
         let io_btn_frame = FrameType::GtkRoundUpFrame;
+        let io_btn_down_frame = FrameType::GtkRoundDownFrame;
+        let io_btn_color = Color::from_rgb(248,248,255);
+        let io_btn_down_color = Color::from_rgb(240,255,240);
         // let io_box_width = 240; boxes are centered between btn and rest of space in tile
         let io_box_height = 30;
         let io_box_padding = 10;
@@ -312,31 +415,63 @@ impl GUI {
         // set up header information
         let mut header_group = Group::default()
             .with_pos(0,0)
-            .with_size(tile_group.w(), tile_group.h() / 13 * 4);
+            .with_size(tile_group.w() / 7 * 4, 90);
         header_group.end();
+        header_group.set_color(Color::from_rgb(255, 250, 240));
         tile_group.add(&header_group);
 
-        let mut header_buf = TextBuffer::default();
-        let mut header_box = TextDisplay::default()
-            .with_pos(10, 10)
-            .with_size(header_group.w() - 20,header_group.h() - 20);
-        header_group.add_resizable(&header_box);
-        header_box.set_buffer(header_buf.clone());
-        header_buf.append(&GUI::default_header_info());
-        header_box.set_scrollbar_align(Align::empty());
+        let header_label_align = Align::Inside.union(Align::Left);
+        let header_label_frame = FrameType::NoBox;
+        let header_label_color = Color::from_rgb(0,0,64);
+        let mut header_label1 = Frame::default()
+            .with_pos(5,5)
+            .with_size(header_group.w() - 10, header_group.h() / 3)
+            .with_label(&format!("USDA C-Grain Sum\tv{}\t{}",GUI::header_version_day().0,GUI::header_version_day().1))
+            .with_align(header_label_align);
+        header_label1.set_label_size(18);
+        header_label1.set_label_type(fltk::enums::LabelType::Embossed);
+        header_label1.set_label_color(header_label_color);
+        header_label1.set_frame(header_label_frame);
+        header_group.add(&header_label1);
+        let mut header_label2 = Frame::default()
+            .with_pos(header_label1.x(),header_group.y() + (header_group.h() / 2 - 5))
+            .with_size(header_label1.w(), header_group.h() / 4)
+            .with_label("Processes CSV and XML Data from C-Grain into Sum Files")
+            .with_align(header_label_align);
+        header_label2.set_frame(header_label_frame);
+        header_label2.set_label_color(header_label_color);
+        header_group.add(&header_label2);
+        let mut header_label3 = Frame::default()
+            .with_pos(header_label2.x(), header_label2.y() + header_label2.h())
+            .with_size(header_label2.w(),header_label2.h())
+            .with_label("Nicholas Sixbury/Dan Brabec\tUSDA-ARS Manhattan,KS\n")
+            .with_align(header_label_align);
+        header_label3.set_frame(header_label_frame);
+        header_label3.set_label_color(header_label_color);
+        header_group.add(&header_label3);
+        // let mut header_buf = TextBuffer::default();
+        // let mut header_box = TextDisplay::default()
+        //     .with_pos(10, 10)
+        //     .with_size(header_group.w() - 20,header_group.h() - 20);
+        // header_group.add_resizable(&header_box);
+        // header_box.set_buffer(header_buf.clone());
+        // header_buf.append(&GUI::default_header_info());
+        // header_box.set_scrollbar_align(Align::empty());
 
         // set up group with input and output controls, processing stuff
         let mut io_controls_group = Group::default()
             .with_pos(0, header_group.y() + header_group.h())
-            .with_size(tile_group.w() / 7 * 4, tile_group.h() - header_group.h());
+            .with_size(tile_group.w() / 7 * 4, tile_group.h() - header_group.h() - 125);
         io_controls_group.end();
+        io_controls_group.set_color(Color::from_rgb(245,255,250));
         tile_group.add(&io_controls_group);
 
-        let io_controls_label = Frame::default()
+        let mut io_controls_label = Frame::default()
             .with_pos(io_controls_group.x(), io_controls_group.y() + 10)
             .with_size(io_controls_group.w(), 20)
             .with_label("Input and Output Controls")
             .with_align(Align::Center);
+        io_controls_label.set_label_size(16);
         io_controls_group.add(&io_controls_label);
 
         // get input file from user
@@ -345,18 +480,22 @@ impl GUI {
             .with_pos(io_controls_label.x() + io_btn_padding, io_controls_label.y() +  io_controls_label.h() + io_btn_padding)
             .with_size(io_btn_width, io_btn_height);
         input_csv_btn.set_frame(io_btn_frame);
+        input_csv_btn.set_down_frame(io_btn_down_frame);
         input_csv_btn.set_tooltip("Left Click this button to choose a csv input file.\nRight Click this button to configure advanced csv input options.");
+        input_csv_btn.clear_visible_focus();
+        input_csv_btn.set_color(io_btn_color);
+        input_csv_btn.set_selection_color(io_btn_down_color);
         io_controls_group.add(&input_csv_btn);
 
         let input_csv_buf = TextBuffer::default();
-        let mut input_csv_box = TextEditor::default()
+        let mut input_csv_box = TextDisplay::default()
             .with_pos(input_csv_btn.x() + input_csv_btn.w() + io_box_padding, input_csv_btn.y())
             .with_size(io_controls_group.w() - (input_csv_btn.w() + (3 * io_box_padding)), io_box_height);
         input_csv_box.set_frame(io_box_frame);
         input_csv_box.set_scrollbar_align(Align::Bottom);
         input_csv_box.set_scrollbar_size(7);
-        input_csv_box.deactivate();
-        input_csv_box.set_buffer(input_csv_buf.clone());
+        input_csv_box.set_color(Color::from_rgb(245,245,245));
+        input_csv_box.set_buffer(input_csv_buf);
         io_controls_group.add_resizable(&input_csv_box);
         let input_csv_ref = Rc::from(RefCell::from(input_csv_box));
 
@@ -371,10 +510,12 @@ impl GUI {
                         config.csv_sample_id_header = choice;
                     }//end matching whether we got response from user
                 } else {
-                    let input_csv_ref = input_csv_ref_clone.as_ref().borrow();
-                    if let Err(err_message) = GUI::create_io_dialog(&sender_clone, "CSVInputFile", &input_csv_ref, dialog::NativeFileChooserType::BrowseFile, dialog::NativeFileChooserOptions::UseFilterExt, "*.csv", "Please select a csv input file") {
+                    let mut input_csv_ref = input_csv_ref_clone.as_ref().borrow_mut();
+                    let mut input_csv_buf = input_csv_ref.buffer().unwrap_or_else(|| TextBuffer::default());
+                    if let Err(err_message) = GUI::create_io_dialog(&sender_clone, "CSVInputFile", &mut input_csv_buf, dialog::NativeFileChooserType::BrowseFile, dialog::NativeFileChooserOptions::UseFilterExt, "*.csv", "Please select a csv input file") {
                         println!("Encountered an error when attempting to show file dialog:\n{}", err_message);
                     }//end if we got an error
+                    input_csv_ref.set_buffer(input_csv_buf);
                 }//end else user didn't right-click
             }//end moving for closure
         });
@@ -384,18 +525,22 @@ impl GUI {
             .with_pos(input_csv_btn.x(), input_csv_btn.y() + input_csv_btn.h() + io_btn_padding)
             .with_size(io_btn_width, io_btn_height);
         input_xml_btn.set_frame(io_btn_frame);
+        input_xml_btn.set_down_frame(io_btn_down_frame);
         input_xml_btn.set_tooltip("Left Click this button to choose an xml input file.\nRight click this button to configure advanced xml input options.");
+        input_xml_btn.clear_visible_focus();
+        input_xml_btn.set_color(io_btn_color);
+        input_xml_btn.set_selection_color(io_btn_down_color);
         io_controls_group.add(&input_xml_btn);
 
         let input_xml_buf = TextBuffer::default();
-        let mut input_xml_box = TextEditor::default()
+        let mut input_xml_box = TextDisplay::default()
             .with_pos(input_xml_btn.x() + input_xml_btn.w() + io_box_padding, input_xml_btn.y())
             .with_size(io_controls_group.w() - (input_xml_btn.w() + (3 * io_box_padding)), io_box_height);
         input_xml_box.set_frame(io_box_frame);
         input_xml_box.set_scrollbar_align(Align::Bottom);
         input_xml_box.set_scrollbar_size(7);
-        input_xml_box.deactivate();
-        input_xml_box.set_buffer(input_xml_buf.clone());
+        input_xml_box.set_color(Color::from_rgb(245,245,245));
+        input_xml_box.set_buffer(input_xml_buf);
         io_controls_group.add_resizable(&input_xml_box);
         let input_xml_ref = Rc::from(RefCell::from(input_xml_box));
 
@@ -507,10 +652,12 @@ impl GUI {
                     let mut window_ref = window_ref_clone.borrow_mut();
                     window_ref.show();
                 } else {
-                    let input_xml_ref = input_xml_ref_clone.as_ref().borrow();
-                    if let Err(err_message) = GUI::create_io_dialog(&sender_clone, "XMLInputFile", &input_xml_ref, dialog::NativeFileChooserType::BrowseFile, dialog::NativeFileChooserOptions::UseFilterExt, "*.xml", "Please select an xml input file") {
+                    let mut input_xml_ref = input_xml_ref_clone.as_ref().borrow_mut();
+                    let mut input_xml_buf = input_xml_ref.buffer().unwrap_or_else(|| TextBuffer::default());
+                    if let Err(err_message) = GUI::create_io_dialog(&sender_clone, "XMLInputFile", &mut input_xml_buf, dialog::NativeFileChooserType::BrowseFile, dialog::NativeFileChooserOptions::UseFilterExt, "*.xml", "Please select an xml input file") {
                         println!("Encountered an error when attempting to show file dialog:\n{}", err_message);
                     }//end if we got an error
+                    input_xml_ref.set_buffer(input_xml_buf);
                 }//end else user didn't right-click
             }//end moving for closure
         });
@@ -521,7 +668,11 @@ impl GUI {
             .with_pos(input_xml_btn.x(), input_xml_btn.y() + input_xml_btn.h() + io_btn_padding)
             .with_size(io_btn_width, io_btn_height);
         output_file_btn.set_frame(io_btn_frame);
+        output_file_btn.set_down_frame(io_btn_down_frame);
         output_file_btn.set_tooltip("Click this button to set where the output file will be located.\nOr, just type a name in the box to right.");
+        output_file_btn.clear_visible_focus();
+        output_file_btn.set_color(io_btn_color);
+        output_file_btn.set_selection_color(io_btn_down_color);
         io_controls_group.add(&output_file_btn);
 
         let output_file_buf = TextBuffer::default();
@@ -531,7 +682,7 @@ impl GUI {
         output_file_box.set_frame(io_box_frame);
         output_file_box.set_scrollbar_align(Align::Bottom);
         output_file_box.set_scrollbar_size(7);
-        output_file_box.set_buffer(output_file_buf.clone());
+        output_file_box.set_buffer(output_file_buf);
         io_controls_group.add_resizable(&output_file_box);
         let output_file_ref = Rc::from(RefCell::from(output_file_box));
 
@@ -539,10 +690,12 @@ impl GUI {
             let output_file_ref_clone = output_file_ref.clone();
             let sender_clone = s.clone();
             move |_| {
-                let output_file_ref = output_file_ref_clone.as_ref().borrow();
-                if let Err(err_message) = GUI::create_io_dialog(&sender_clone, "OutputFile", &output_file_ref, dialog::NativeFileChooserType::BrowseSaveFile, dialog::NativeFileChooserOptions::SaveAsConfirm, "", "Please specify the output file.") {
+                let mut output_file_ref = output_file_ref_clone.as_ref().borrow_mut();
+                let mut output_file_buf = output_file_ref.buffer().unwrap_or_else(|| TextBuffer::default());
+                if let Err(err_message) = GUI::create_io_dialog(&sender_clone, "OutputFile", &mut output_file_buf, dialog::NativeFileChooserType::BrowseSaveFile, dialog::NativeFileChooserOptions::SaveAsConfirm, "", "Please specify the output file.") {
                     println!("Encountered an error when attempting to show file dialog:\n{}", err_message);
                 }//end if we got an error
+                output_file_ref.set_buffer(output_file_buf);
             }//end moving for closure
         });
 
@@ -550,15 +703,19 @@ impl GUI {
         let mut process_file_btn = Button::default()
             .with_label("Process Data")
             .with_pos(output_file_btn.x() + 60, output_file_btn.y() + output_file_btn.h() + 10)
-            .with_size(250, 75);
+            .with_size(250, 50);
         process_file_btn.emit(s.clone(), InterfaceMessage::ProcessSum);
-        process_file_btn.set_frame(FrameType::PlasticDownBox);
+        process_file_btn.set_frame(io_btn_frame);
+        process_file_btn.set_down_frame(io_btn_down_frame);
+        process_file_btn.clear_visible_focus();
+        process_file_btn.set_color(io_btn_color);
+        process_file_btn.set_selection_color(io_btn_down_color);
         io_controls_group.add_resizable(&process_file_btn);
 
         // set up group with configuration options
         let mut config_group = Group::default()
-            .with_pos(io_controls_group.x() + io_controls_group.w(), io_controls_group.y())
-            .with_size(tile_group.width() - io_controls_group.width(), tile_group.height() - header_group.height());
+            .with_pos(io_controls_group.x() + io_controls_group.w(), 0)
+            .with_size(tile_group.width() - io_controls_group.width(), tile_group.height());
         config_group.end();
         config_group.set_color(Color::from_rgb(220,239,220));
         tile_group.add(&config_group);
@@ -567,7 +724,8 @@ impl GUI {
             .with_pos(config_group.x(), config_group.y() + 10)
             .with_size(config_group.width(), 20)
             .with_label("Configuration Settings")
-            .with_align(Align::Center);
+            .with_align(Align::Inside);
+        config_label.set_label_size(16);
         config_group.add(&config_label);
         
         config_label.set_tooltip("Right click if you want to change config presets.");
@@ -593,16 +751,17 @@ impl GUI {
             .with_pos(config_label.x(), config_label.y() + config_label.h())
             .with_size(config_label.w(),config_label.h())
             .with_label("No Named Preset Active")
-            .with_align(Align::Center);
+            .with_align(Align::Inside);
         config_group.add(&config_preset_frm);
 
         let mut class_filter_chck = CheckButton::default()
             .with_pos(config_preset_frm.x() + cf_padding, config_preset_frm.y() + config_preset_frm.h() + cf_padding)
-            .with_size(180,cf_chck_height)
-            .with_label("Filter to Classification of:");
+            .with_size(config_group.w() - cf_padding * 2,cf_chck_height)
+            .with_label("Filter CSV Stat Columns to Class:");
         class_filter_chck.set_checked(true);
         class_filter_chck.set_frame(cf_chck_frame);
         class_filter_chck.set_tooltip("If checked, processing will only consider rows in csv data matching the given classification(s).\nRight click if you want to configure which column is considered for class filtering.");
+        class_filter_chck.clear_visible_focus();
         config_group.add(&class_filter_chck);
         class_filter_chck.set_callback({
             let config_ref_clone = (&config_ref).clone();
@@ -620,28 +779,29 @@ impl GUI {
 
         let mut class_filter_buf = TextBuffer::default();
         let mut class_filter_box = TextEditor::default()
-            .with_pos(class_filter_chck.x() + class_filter_chck.w() + cf_padding, class_filter_chck.y())
-            .with_size(config_group.width() - (class_filter_chck.w() + (cf_padding * 3)), 25);
+            .with_pos(class_filter_chck.x(), class_filter_chck.y() + class_filter_chck.h() + cf_padding)
+            .with_size(config_group.width() - cf_padding * 2, 25);
         class_filter_box.set_buffer(class_filter_buf.clone());
         class_filter_buf.set_text("Sound");
         class_filter_box.set_frame(cf_box_frame);
-        class_filter_box.set_tooltip("Separate values by a comma or |. When separating by comma, include 1 or 0 spaces after the comma. When separating by |, include 1 space on either side or no space on either side.");
+        class_filter_box.set_tooltip("Class(es) to filter for when calculating stat columns.\nSeparate values by a comma or |. When separating by comma, include 1 or 0 spaces after the comma. When separating by |, include 1 space on either side or no space on either side.");
         class_filter_box.set_scrollbar_align(Align::Clip);
         config_group.add_resizable(&class_filter_box);
 
         let mut stat_cols_chck = CheckButton::default()
-            .with_pos(class_filter_chck.x(), class_filter_chck.y() + class_filter_chck.h() + cf_padding)
+            .with_pos(class_filter_chck.x(), class_filter_box.y() + class_filter_box.h() + cf_padding)
             .with_size(config_group.w() - cf_padding * 2, cf_chck_height)
-            .with_label("Output Stat Columns from CSV Columns:");
+            .with_label("Output CSV Stat Columns:");
         stat_cols_chck.set_checked(true);
         stat_cols_chck.set_frame(cf_chck_frame);
         stat_cols_chck.set_tooltip("If checked, then columns will be added to the output with the Avg and Stdev per sample of certain columns in the CSV data.");
+        stat_cols_chck.clear_visible_focus();
         config_group.add(&stat_cols_chck);
 
         let mut stat_cols_buf = TextBuffer::default();
         let mut stat_cols_box = TextEditor::default()
             .with_pos(stat_cols_chck.x(), stat_cols_chck.y() + stat_cols_chck.h() + cf_padding)
-            .with_size(stat_cols_chck.w(), 75);
+            .with_size(stat_cols_chck.w(), 235);
         stat_cols_box.set_buffer(stat_cols_buf.clone());
         stat_cols_buf.set_text("Area, Length, Width, Thickness, \nRatio, Mean Width, Volume, Weight\nLight, Hue, Saturation\nRed, Green, Blue");
         stat_cols_box.set_frame(cf_box_frame);
@@ -660,25 +820,64 @@ impl GUI {
         let mut class_perc_chck = CheckButton::default()
             .with_pos(stat_cols_chck.x(), stat_cols_box.y() + stat_cols_box.h() + cf_padding)
             .with_size(stat_cols_chck.w(), cf_chck_height)
-            .with_label("Outut Classification Percentages from CSV");
+            .with_label("Outut % per Class per Sample in CSV");
         class_perc_chck.set_checked(true);
         class_perc_chck.set_frame(cf_chck_frame);
         class_perc_chck.set_tooltip("If checked, then columns will be added to the output giving the percentage of each sample of each possible classification. These percentages are calculated independently of any other classification fitlering.");
+        class_perc_chck.clear_visible_focus();
         config_group.add(&class_perc_chck);
 
         let mut xml_sieve_chck = CheckButton::default()
             .with_pos(class_perc_chck.x(), class_perc_chck.y() + class_perc_chck.h() + cf_padding)
             .with_size(stat_cols_chck.w(), cf_chck_height)
-            .with_label("Output XML Sieve Data if Found");
+            .with_label("Output XML Sieve Data");
         xml_sieve_chck.set_checked(true);
         xml_sieve_chck.set_frame(cf_chck_frame);
         xml_sieve_chck.set_tooltip("If checked, then columns will be added to the output giving sieve data for each sample. Since this data is only found in the xml file, columns will only be added if an xml input file is loaded.");
+        xml_sieve_chck.clear_visible_focus();
         config_group.add(&xml_sieve_chck);
 
+        let mut dialog_group = Group::default()
+            .with_pos(io_controls_group.x(), io_controls_group.y() + io_controls_group.h())
+            .with_size(io_controls_group.w(), tile_group.h() - (io_controls_group.y() + io_controls_group.h()));
+        dialog_group.end();
+        dialog_group.set_color(Color::from_rgb(255,248,220));
+        tile_group.add(&dialog_group);
+
+        let mut dialog_buf = TextBuffer::default();
+        let mut dialog_box = TextDisplay::default()
+            .with_pos(dialog_group.x() + 5, dialog_group.y() + 5)
+            .with_size(dialog_group.w() - 10, dialog_group.height() - 50)
+            .with_align(Align::Inside);
+        dialog_box.set_text_color(Color::from_rgb(0,0,64));
+        dialog_box.set_color(Color::from_rgb(255,250,240));
+        dialog_box.set_frame(FrameType::GtkThinDownFrame);
+        dialog_box.wrap_mode(fltk::text::WrapMode::AtBounds, 1);
+        dialog_box.set_scrollbar_align(Align::Right);
+        dialog_box.set_scrollbar_size(10);
+        dialog_box.set_text_size(16);
+        dialog_buf.set_text("");
+        dialog_box.set_buffer(dialog_buf);
+        dialog_group.add(&dialog_box);
+
+        let mut dialog_btns = Flex::default()
+            .with_pos(dialog_box.x(), dialog_box.y() + dialog_box.h() + 5)
+            .with_size(dialog_box.w(), dialog_group.h() - dialog_box.h() - 15)
+            // .with_label("button_pack")
+            .with_align(Align::Right)
+            .with_type(FlexType::Row);
+        dialog_btns.end();
+        dialog_btns.set_color(Color::from_rgb(255,248,220));
+        dialog_btns.set_frame(FrameType::FlatBox);
+        dialog_group.add(&dialog_btns);
+
         // set frame type for borders between sections, make sure to use box type
-        header_group.set_frame(FrameType::GtkUpBox);
-        io_controls_group.set_frame(FrameType::GtkUpBox);
-        config_group.set_frame(FrameType::GtkUpBox);
+        let group_frames = FrameType::GtkThinUpBox;
+        header_group.set_frame(group_frames);
+        io_controls_group.set_frame(group_frames);
+        config_group.set_frame(group_frames);
+        dialog_group.set_frame(group_frames);
+        dialog_group.deactivate();
 
         main_window.make_resizable(true);
         // callback for window occurs when user tries to close it
@@ -697,8 +896,11 @@ impl GUI {
             debug_log: Vec::new(),
             msg_sender: s,
             msg_receiver: r,
-            ux_header_buf: header_buf,
             ux_config_group: config_group,
+            ux_io_controls_group: io_controls_group,
+            ux_dialog_group: dialog_group,
+            ux_dialog_box: dialog_box,
+            ux_dialog_btns_flx: dialog_btns,
             ux_input_csv_txt: input_csv_ref,
             ux_input_xml_txt: input_xml_ref,
             ux_output_file_txt: output_file_ref,
@@ -715,13 +917,7 @@ impl GUI {
 
     /// Helper method used in initialize to share code between handlers
     /// of io buttons.
-    fn create_io_dialog(sender: &Sender<InterfaceMessage>, msg_header: &str, txt: &TextEditor, dialog_type: dialog::NativeFileChooserType, dialog_option: dialog::NativeFileChooserOptions, dialog_filter: &str, dialog_title: &str ) -> Result<(), String> {
-        // make sure textbuffer is accessible
-        let mut txt_buf = match txt.buffer() {
-            Some(buf) => buf,
-            None => {
-                return Err(format!("For some reason we couldn't access teh textbuffer. Oops. This should never happen."));
-            }};
+    fn create_io_dialog(sender: &Sender<InterfaceMessage>, msg_header: &str, txt: &mut TextBuffer, dialog_type: dialog::NativeFileChooserType, dialog_option: dialog::NativeFileChooserOptions, dialog_filter: &str, dialog_title: &str ) -> Result<(), String> {
         // set up dialog with all the settings
         let mut dialog = dialog::NativeFileChooser::new(dialog_type);
         dialog.set_option(dialog_option);
@@ -729,15 +925,17 @@ impl GUI {
         dialog.set_title(dialog_title);
         dialog.show();
         // make sure the dialog didn't have an error
-        let dialog_error = dialog.error_message().unwrap_or_else(|| "".to_owned()).replace("No error", "");
+        let dialog_error = dialog.error_message().unwrap_or_else(|| "".to_string()).replace("No error", "");
         if dialog_error != "" {
             return Err(format!("We encountered a dialog error somehow. Details below:\n{}", dialog_error));
         }//end if dialog had an error
+        let dialog_filename = dialog.filename();
+        drop(dialog);
         // make sure we can get the file from the dialog
-        match dialog.filename().file_name() {
+        match dialog_filename.file_name() {
             Some(filename) => {
-                txt_buf.set_text(filename.to_string_lossy().as_ref());
-                sender.send(InterfaceMessage::file_message_from_header(msg_header,dialog.filename()));
+                txt.set_text(filename.to_string_lossy().as_ref());
+                sender.send(InterfaceMessage::file_message_from_header(msg_header,dialog_filename));
             },
             None => return Err(format!("Couldn't get filename for some reason"))
         }//end matching whether we can get the filename to set the box
