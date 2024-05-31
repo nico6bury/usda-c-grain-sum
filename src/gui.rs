@@ -228,15 +228,21 @@ impl GUI {
         self.ux_dialog_group.activate();
     }//end activate_dialog()
 
+    /// Creates a modal dialog message that is integrated into
+    /// the main window of the application.
     pub fn integrated_dialog_message(&mut self, txt: &str) {
         self.integrated_dialog_message_choice(txt, vec!["Ok"]);
     }//end integrated_dialog_message()
 
+    /// Creates a modal error message that is integrated into the
+    /// main window of the application.
     pub fn integrated_dialog_alert(&mut self, txt: &str) {
         dialog::beep(BeepType::Error);
         self.integrated_dialog_message(txt);
     }//end integrated_dialog_alert()
 
+    /// Creates a modal dialog message which forces the user
+    /// to ask a yes or no question.
     pub fn integrated_dialog_yes_no(&mut self, txt: &str) -> bool {
         match self.integrated_dialog_message_choice(txt, vec!["yes","no"]) {
             Some(idx) => idx == 0,
@@ -244,8 +250,17 @@ impl GUI {
         }//end matching whether selection was yes or no
     }//end integrated_dialog_yes_no()
 
+    /// Creates a modal dialog message which forces the user to choose
+    /// between the options specified.  
+    /// The buttons for options have auto-generated sizes, so if there are too
+    /// many options, or they are too wordy, text might not be readable.  
+    /// If this function is passed an empty vec for options, it will immediately
+    /// return None. Without any options to end dialog, the user wouldn't be able
+    /// to continue.
     pub fn integrated_dialog_message_choice(&mut self, txt: &str, options: Vec<&str>) -> Option<usize> {
         self.activate_dialog();
+        // input validation for options being empty
+        if options.len() == 0 {return None;}
         // update text based on parameter
         let mut dialog_buffer = self.ux_dialog_box.buffer().unwrap_or_else(|| TextBuffer::default());
         dialog_buffer.set_text(txt);
