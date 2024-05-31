@@ -1,6 +1,6 @@
 use std::{cell::RefCell, path::PathBuf, rc::Rc};
 
-use fltk::{app::{self, App, Receiver, Sender}, button::{Button, CheckButton}, dialog::{self, BeepType}, enums::{Align, Color, Event, FrameType}, frame::Frame, group::{Flex, FlexType, Group, Tile}, prelude::{DisplayExt, GroupExt, WidgetBase, WidgetExt, WindowExt}, text::{TextBuffer, TextDisplay, TextEditor}, window::{self, Window}};
+use fltk::{app::{self, App, Receiver, Sender}, button::{Button, CheckButton}, dialog::{self, BeepType}, enums::{Align, Color, Event, FrameType}, frame::Frame, group::{Flex, FlexType, Group, Tile}, prelude::{ButtonExt, DisplayExt, GroupExt, WidgetBase, WidgetExt, WindowExt}, text::{TextBuffer, TextDisplay, TextEditor}, window::{self, Window}};
 
 use usda_c_grain_sum::config_store::ConfigStore;
 
@@ -69,8 +69,6 @@ pub struct GUI {
     /// Message Receiver, we give a reference to this to main, 
     /// allowing it to receive our messages.
     msg_receiver: Receiver<InterfaceMessage>,
-    /// Buffer holding text in the header display
-    ux_header_buf: TextBuffer,
     /// The group holding all the configuration controls.  
     /// This is stored here in order to disable during dialog.
     ux_config_group: Group,
@@ -141,24 +139,22 @@ impl GUI {
         return self.msg_receiver.clone();
     }//end get_receiver(self)
 
-    /// Constructs the String holding default header information, aside from
-    /// config preset information. This function builds in the pkg version,
-    /// the time at which the program was compiled, and some other common
-    /// header information.
+    /// Creates formatted strings holding the version
+    /// number and date this applicaiton was compiled.
     /// 
-    /// This function was originally created in order to make it easier to
-    /// add or remove text from the header in response to configuration preset
-    /// changes.
-    fn default_header_info() -> String {
+    /// Used to build the header.
+    fn header_version_day() -> (String,String) {
         let version = option_env!("CARGO_PKG_VERSION");
         let format_des = time::macros::format_description!("[month repr:long] [year]");
         let date = compile_time::date!();
         let date_str = date.format(format_des).unwrap_or(String::from("unknown compile time"));
-        let mut output = String::new();
-        output.push_str(&format!("USDA C-Grain Sum\tv{}\t{}\n",version.unwrap_or("unknown version"),date_str));
-        output.push_str("Processes CSV and XML Data from C-Grain into Sum Files\n\n");
-        output.push_str(&format!("Nicholas Sixbury/Dan Brabec\tUSDA Manhattan,KS\n"));
-        return output;
+        let version_str = format!("{}",version.unwrap_or("unknown version"));
+        // let mut output = String::new();
+        // output.push_str(&format!("USDA C-Grain Sum\tv{}\t{}\n",version.unwrap_or("unknown version"),date_str));
+        // output.push_str("Processes CSV and XML Data from C-Grain into Sum Files\n\n");
+        // output.push_str(&format!("Nicholas Sixbury/Dan Brabec\tUSDA Manhattan,KS\n"));
+        // return output;
+        return (version_str, date_str);
     }//end default_header_info()
 
     /// Closes the application.
@@ -271,6 +267,10 @@ impl GUI {
         self.ux_dialog_btns_flx.clear();
         for (idx, option) in options.iter().enumerate() {
             let mut button = Button::default().with_label(option);
+            button.set_frame(FrameType::GtkRoundDownFrame);
+            button.set_down_frame(FrameType::GtkRoundDownFrame);
+            button.set_color(Color::from_rgb(245,245,245));
+            button.set_selection_color(Color::from_rgb(224,255,255));
             button.set_callback({
                 let button_index_ref = (&button_pressed_index).clone();
                 move |_| {
@@ -354,14 +354,14 @@ impl GUI {
 
         match config.personalized_config_name.as_str() {
             "Scott" | "Rhett"=> {
-                let new_header = GUI::default_header_info();
-                self.ux_header_buf.set_text(&new_header);
+                // let new_header = GUI::default_header_info();
+                // self.ux_header_buf.set_text(&new_header);
                 self.ux_cf_setting_preset_buf.set_label(&format!("Configuration for {}",&config.personalized_config_name));
                 // if config.personalized_config_name.eq("Scott") { self.ux_config_group.set_color(Color::from_rgb(220,239,220)) }
                 // if config.personalized_config_name.eq("Rhett") { self.ux_config_group.set_color(Color::from_rgb(220,220,239)) }
             },
             _ => {
-                self.ux_header_buf.set_text(&GUI::default_header_info());
+                // self.ux_header_buf.set_text(&GUI::default_header_info());
                 self.ux_cf_setting_preset_buf.set_label("No Named Preset Active");
                 // self.ux_config_group.set_color(Color::Light1);
             },
@@ -392,6 +392,9 @@ impl GUI {
         let io_btn_height = 30;
         let io_btn_padding = 10;
         let io_btn_frame = FrameType::GtkRoundUpFrame;
+        let io_btn_down_frame = FrameType::GtkRoundDownFrame;
+        let io_btn_color = Color::from_rgb(248,248,255);
+        let io_btn_down_color = Color::from_rgb(240,255,240);
         // let io_box_width = 240; boxes are centered between btn and rest of space in tile
         let io_box_height = 30;
         let io_box_padding = 10;
@@ -412,31 +415,63 @@ impl GUI {
         // set up header information
         let mut header_group = Group::default()
             .with_pos(0,0)
-            .with_size(tile_group.w(), 90);
+            .with_size(tile_group.w() / 7 * 4, 90);
         header_group.end();
+        header_group.set_color(Color::from_rgb(255, 250, 240));
         tile_group.add(&header_group);
 
-        let mut header_buf = TextBuffer::default();
-        let mut header_box = TextDisplay::default()
-            .with_pos(10, 10)
-            .with_size(header_group.w() - 20,header_group.h() - 20);
-        header_group.add_resizable(&header_box);
-        header_box.set_buffer(header_buf.clone());
-        header_buf.append(&GUI::default_header_info());
-        header_box.set_scrollbar_align(Align::empty());
+        let header_label_align = Align::Inside.union(Align::Left);
+        let header_label_frame = FrameType::NoBox;
+        let header_label_color = Color::from_rgb(0,0,64);
+        let mut header_label1 = Frame::default()
+            .with_pos(5,5)
+            .with_size(header_group.w() - 10, header_group.h() / 3)
+            .with_label(&format!("USDA C-Grain Sum\tv{}\t{}",GUI::header_version_day().0,GUI::header_version_day().1))
+            .with_align(header_label_align);
+        header_label1.set_label_size(18);
+        header_label1.set_label_type(fltk::enums::LabelType::Embossed);
+        header_label1.set_label_color(header_label_color);
+        header_label1.set_frame(header_label_frame);
+        header_group.add(&header_label1);
+        let mut header_label2 = Frame::default()
+            .with_pos(header_label1.x(),header_group.y() + (header_group.h() / 2 - 5))
+            .with_size(header_label1.w(), header_group.h() / 4)
+            .with_label("Processes CSV and XML Data from C-Grain into Sum Files")
+            .with_align(header_label_align);
+        header_label2.set_frame(header_label_frame);
+        header_label2.set_label_color(header_label_color);
+        header_group.add(&header_label2);
+        let mut header_label3 = Frame::default()
+            .with_pos(header_label2.x(), header_label2.y() + header_label2.h())
+            .with_size(header_label2.w(),header_label2.h())
+            .with_label("Nicholas Sixbury/Dan Brabec\tUSDA-ARS Manhattan,KS\n")
+            .with_align(header_label_align);
+        header_label3.set_frame(header_label_frame);
+        header_label3.set_label_color(header_label_color);
+        header_group.add(&header_label3);
+        // let mut header_buf = TextBuffer::default();
+        // let mut header_box = TextDisplay::default()
+        //     .with_pos(10, 10)
+        //     .with_size(header_group.w() - 20,header_group.h() - 20);
+        // header_group.add_resizable(&header_box);
+        // header_box.set_buffer(header_buf.clone());
+        // header_buf.append(&GUI::default_header_info());
+        // header_box.set_scrollbar_align(Align::empty());
 
         // set up group with input and output controls, processing stuff
         let mut io_controls_group = Group::default()
             .with_pos(0, header_group.y() + header_group.h())
             .with_size(tile_group.w() / 7 * 4, tile_group.h() - header_group.h() - 125);
         io_controls_group.end();
+        io_controls_group.set_color(Color::from_rgb(245,255,250));
         tile_group.add(&io_controls_group);
 
-        let io_controls_label = Frame::default()
+        let mut io_controls_label = Frame::default()
             .with_pos(io_controls_group.x(), io_controls_group.y() + 10)
             .with_size(io_controls_group.w(), 20)
             .with_label("Input and Output Controls")
             .with_align(Align::Center);
+        io_controls_label.set_label_size(16);
         io_controls_group.add(&io_controls_label);
 
         // get input file from user
@@ -445,7 +480,11 @@ impl GUI {
             .with_pos(io_controls_label.x() + io_btn_padding, io_controls_label.y() +  io_controls_label.h() + io_btn_padding)
             .with_size(io_btn_width, io_btn_height);
         input_csv_btn.set_frame(io_btn_frame);
+        input_csv_btn.set_down_frame(io_btn_down_frame);
         input_csv_btn.set_tooltip("Left Click this button to choose a csv input file.\nRight Click this button to configure advanced csv input options.");
+        input_csv_btn.clear_visible_focus();
+        input_csv_btn.set_color(io_btn_color);
+        input_csv_btn.set_selection_color(io_btn_down_color);
         io_controls_group.add(&input_csv_btn);
 
         let input_csv_buf = TextBuffer::default();
@@ -484,7 +523,11 @@ impl GUI {
             .with_pos(input_csv_btn.x(), input_csv_btn.y() + input_csv_btn.h() + io_btn_padding)
             .with_size(io_btn_width, io_btn_height);
         input_xml_btn.set_frame(io_btn_frame);
+        input_xml_btn.set_down_frame(io_btn_down_frame);
         input_xml_btn.set_tooltip("Left Click this button to choose an xml input file.\nRight click this button to configure advanced xml input options.");
+        input_xml_btn.clear_visible_focus();
+        input_xml_btn.set_color(io_btn_color);
+        input_xml_btn.set_selection_color(io_btn_down_color);
         io_controls_group.add(&input_xml_btn);
 
         let input_xml_buf = TextBuffer::default();
@@ -621,7 +664,11 @@ impl GUI {
             .with_pos(input_xml_btn.x(), input_xml_btn.y() + input_xml_btn.h() + io_btn_padding)
             .with_size(io_btn_width, io_btn_height);
         output_file_btn.set_frame(io_btn_frame);
+        output_file_btn.set_down_frame(io_btn_down_frame);
         output_file_btn.set_tooltip("Click this button to set where the output file will be located.\nOr, just type a name in the box to right.");
+        output_file_btn.clear_visible_focus();
+        output_file_btn.set_color(io_btn_color);
+        output_file_btn.set_selection_color(io_btn_down_color);
         io_controls_group.add(&output_file_btn);
 
         let output_file_buf = TextBuffer::default();
@@ -652,13 +699,17 @@ impl GUI {
             .with_pos(output_file_btn.x() + 60, output_file_btn.y() + output_file_btn.h() + 10)
             .with_size(250, 50);
         process_file_btn.emit(s.clone(), InterfaceMessage::ProcessSum);
-        process_file_btn.set_frame(FrameType::PlasticDownBox);
+        process_file_btn.set_frame(io_btn_frame);
+        process_file_btn.set_down_frame(io_btn_down_frame);
+        process_file_btn.clear_visible_focus();
+        process_file_btn.set_color(io_btn_color);
+        process_file_btn.set_selection_color(io_btn_down_color);
         io_controls_group.add_resizable(&process_file_btn);
 
         // set up group with configuration options
         let mut config_group = Group::default()
-            .with_pos(io_controls_group.x() + io_controls_group.w(), io_controls_group.y())
-            .with_size(tile_group.width() - io_controls_group.width(), tile_group.height() - header_group.height());
+            .with_pos(io_controls_group.x() + io_controls_group.w(), 0)
+            .with_size(tile_group.width() - io_controls_group.width(), tile_group.height());
         config_group.end();
         config_group.set_color(Color::from_rgb(220,239,220));
         tile_group.add(&config_group);
@@ -667,7 +718,8 @@ impl GUI {
             .with_pos(config_group.x(), config_group.y() + 10)
             .with_size(config_group.width(), 20)
             .with_label("Configuration Settings")
-            .with_align(Align::Center);
+            .with_align(Align::Inside);
+        config_label.set_label_size(16);
         config_group.add(&config_label);
         
         config_label.set_tooltip("Right click if you want to change config presets.");
@@ -693,16 +745,17 @@ impl GUI {
             .with_pos(config_label.x(), config_label.y() + config_label.h())
             .with_size(config_label.w(),config_label.h())
             .with_label("No Named Preset Active")
-            .with_align(Align::Center);
+            .with_align(Align::Inside);
         config_group.add(&config_preset_frm);
 
         let mut class_filter_chck = CheckButton::default()
             .with_pos(config_preset_frm.x() + cf_padding, config_preset_frm.y() + config_preset_frm.h() + cf_padding)
-            .with_size(180,cf_chck_height)
-            .with_label("Filter to Classification of:");
+            .with_size(config_group.w() - cf_padding * 2,cf_chck_height)
+            .with_label("Filter CSV Stat Columns to Class:");
         class_filter_chck.set_checked(true);
         class_filter_chck.set_frame(cf_chck_frame);
         class_filter_chck.set_tooltip("If checked, processing will only consider rows in csv data matching the given classification(s).\nRight click if you want to configure which column is considered for class filtering.");
+        class_filter_chck.clear_visible_focus();
         config_group.add(&class_filter_chck);
         class_filter_chck.set_callback({
             let config_ref_clone = (&config_ref).clone();
@@ -720,28 +773,29 @@ impl GUI {
 
         let mut class_filter_buf = TextBuffer::default();
         let mut class_filter_box = TextEditor::default()
-            .with_pos(class_filter_chck.x() + class_filter_chck.w() + cf_padding, class_filter_chck.y())
-            .with_size(config_group.width() - (class_filter_chck.w() + (cf_padding * 3)), 25);
+            .with_pos(class_filter_chck.x(), class_filter_chck.y() + class_filter_chck.h() + cf_padding)
+            .with_size(config_group.width() - cf_padding * 2, 25);
         class_filter_box.set_buffer(class_filter_buf.clone());
         class_filter_buf.set_text("Sound");
         class_filter_box.set_frame(cf_box_frame);
-        class_filter_box.set_tooltip("Separate values by a comma or |. When separating by comma, include 1 or 0 spaces after the comma. When separating by |, include 1 space on either side or no space on either side.");
+        class_filter_box.set_tooltip("Class(es) to filter for when calculating stat columns.\nSeparate values by a comma or |. When separating by comma, include 1 or 0 spaces after the comma. When separating by |, include 1 space on either side or no space on either side.");
         class_filter_box.set_scrollbar_align(Align::Clip);
         config_group.add_resizable(&class_filter_box);
 
         let mut stat_cols_chck = CheckButton::default()
-            .with_pos(class_filter_chck.x(), class_filter_chck.y() + class_filter_chck.h() + cf_padding)
+            .with_pos(class_filter_chck.x(), class_filter_box.y() + class_filter_box.h() + cf_padding)
             .with_size(config_group.w() - cf_padding * 2, cf_chck_height)
-            .with_label("Output Stat Columns from CSV Columns:");
+            .with_label("Output CSV Stat Columns:");
         stat_cols_chck.set_checked(true);
         stat_cols_chck.set_frame(cf_chck_frame);
         stat_cols_chck.set_tooltip("If checked, then columns will be added to the output with the Avg and Stdev per sample of certain columns in the CSV data.");
+        stat_cols_chck.clear_visible_focus();
         config_group.add(&stat_cols_chck);
 
         let mut stat_cols_buf = TextBuffer::default();
         let mut stat_cols_box = TextEditor::default()
             .with_pos(stat_cols_chck.x(), stat_cols_chck.y() + stat_cols_chck.h() + cf_padding)
-            .with_size(stat_cols_chck.w(), 184);
+            .with_size(stat_cols_chck.w(), 235);
         stat_cols_box.set_buffer(stat_cols_buf.clone());
         stat_cols_buf.set_text("Area, Length, Width, Thickness, \nRatio, Mean Width, Volume, Weight\nLight, Hue, Saturation\nRed, Green, Blue");
         stat_cols_box.set_frame(cf_box_frame);
@@ -760,25 +814,28 @@ impl GUI {
         let mut class_perc_chck = CheckButton::default()
             .with_pos(stat_cols_chck.x(), stat_cols_box.y() + stat_cols_box.h() + cf_padding)
             .with_size(stat_cols_chck.w(), cf_chck_height)
-            .with_label("Outut Classification Percentages from CSV");
+            .with_label("Outut % per Class per Sample in CSV");
         class_perc_chck.set_checked(true);
         class_perc_chck.set_frame(cf_chck_frame);
         class_perc_chck.set_tooltip("If checked, then columns will be added to the output giving the percentage of each sample of each possible classification. These percentages are calculated independently of any other classification fitlering.");
+        class_perc_chck.clear_visible_focus();
         config_group.add(&class_perc_chck);
 
         let mut xml_sieve_chck = CheckButton::default()
             .with_pos(class_perc_chck.x(), class_perc_chck.y() + class_perc_chck.h() + cf_padding)
             .with_size(stat_cols_chck.w(), cf_chck_height)
-            .with_label("Output XML Sieve Data if Found");
+            .with_label("Output XML Sieve Data");
         xml_sieve_chck.set_checked(true);
         xml_sieve_chck.set_frame(cf_chck_frame);
         xml_sieve_chck.set_tooltip("If checked, then columns will be added to the output giving sieve data for each sample. Since this data is only found in the xml file, columns will only be added if an xml input file is loaded.");
+        xml_sieve_chck.clear_visible_focus();
         config_group.add(&xml_sieve_chck);
 
         let mut dialog_group = Group::default()
             .with_pos(io_controls_group.x(), io_controls_group.y() + io_controls_group.h())
             .with_size(io_controls_group.w(), tile_group.h() - (io_controls_group.y() + io_controls_group.h()));
         dialog_group.end();
+        dialog_group.set_color(Color::from_rgb(255,248,220));
         tile_group.add(&dialog_group);
 
         let mut dialog_buf = TextBuffer::default();
@@ -786,7 +843,8 @@ impl GUI {
             .with_pos(dialog_group.x() + 5, dialog_group.y() + 5)
             .with_size(dialog_group.w() - 10, dialog_group.height() - 50)
             .with_align(Align::Inside);
-        dialog_box.set_color(Color::Light1);
+        dialog_box.set_text_color(Color::from_rgb(0,0,64));
+        dialog_box.set_color(Color::from_rgb(255,250,240));
         dialog_box.set_frame(FrameType::GtkThinDownFrame);
         dialog_box.wrap_mode(fltk::text::WrapMode::AtBounds, 1);
         dialog_box.set_scrollbar_align(Align::Right);
@@ -802,14 +860,16 @@ impl GUI {
             .with_align(Align::Right)
             .with_type(FlexType::Row);
         dialog_btns.end();
+        dialog_btns.set_color(Color::from_rgb(255,248,220));
         dialog_btns.set_frame(FrameType::FlatBox);
         dialog_group.add(&dialog_btns);
 
         // set frame type for borders between sections, make sure to use box type
-        header_group.set_frame(FrameType::GtkUpBox);
-        io_controls_group.set_frame(FrameType::GtkUpBox);
-        config_group.set_frame(FrameType::GtkUpBox);
-        dialog_group.set_frame(FrameType::GtkUpBox);
+        let group_frames = FrameType::GtkThinUpBox;
+        header_group.set_frame(group_frames);
+        io_controls_group.set_frame(group_frames);
+        config_group.set_frame(group_frames);
+        dialog_group.set_frame(group_frames);
         dialog_group.deactivate();
 
         main_window.make_resizable(true);
@@ -829,7 +889,6 @@ impl GUI {
             debug_log: Vec::new(),
             msg_sender: s,
             msg_receiver: r,
-            ux_header_buf: header_buf,
             ux_config_group: config_group,
             ux_io_controls_group: io_controls_group,
             ux_dialog_group: dialog_group,
