@@ -1,6 +1,6 @@
 [package]
 name = "usda-c-grain-sum"
-version = "0.4.1"
+version = "0.4.2"
 authors = ["Nicholas Sixbury"]
 rust-version = "1.77.1"
 description = "This project is an application created for use in the USDA as a tool to process output from the C-Grain machine."
