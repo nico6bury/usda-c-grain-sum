@@ -849,6 +849,7 @@ impl GUI {
         dialog_box.wrap_mode(fltk::text::WrapMode::AtBounds, 1);
         dialog_box.set_scrollbar_align(Align::Right);
         dialog_box.set_scrollbar_size(10);
+        dialog_box.set_text_size(16);
         dialog_buf.set_text("");
         dialog_box.set_buffer(dialog_buf);
         dialog_group.add(&dialog_box);
