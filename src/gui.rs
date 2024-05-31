@@ -277,7 +277,6 @@ impl GUI {
         }//end continuing application while we wait for button to be pressed
 
         self.clear_integrated_dialog();
-        println!("button index {:?}", button_index_to_return);
         return button_index_to_return;
     }//end integrated_dialog_message(self, txt)
 
