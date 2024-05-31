@@ -191,7 +191,7 @@ fn ensure_data_valid_for_output(gui: &mut GUI, config_store: &Option<ConfigStore
             if output_txt != "" && output_file.is_none() {
                 // gets directory of input file, either csv or xml depending on config
                 let input_dir = match config {
-                    csv_conf if csv_conf.csv_class_percent_enabled && csv_conf.csv_stat_columns_enabled => {
+                    csv_conf if csv_conf.csv_class_percent_enabled || csv_conf.csv_stat_columns_enabled => {
                         match csv_input_clone{
                             Some(ref pathbuf) => match pathbuf.parent() {
                                 Some(parent) => String::from(parent.to_string_lossy()),
