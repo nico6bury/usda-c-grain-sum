@@ -1,3 +1,4 @@
+#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 use core::str;
 use std::path::PathBuf;
 
@@ -9,7 +10,6 @@ use gui::GUI;
 use crate::gui::InterfaceMessage;
 
 mod gui;
-
 
 fn main() {
     // setup gui
