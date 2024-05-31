@@ -84,9 +84,9 @@ pub struct GUI {
     /// dialog choices available to a user.
     ux_dialog_btns_flx: Flex,
     /// Buffer holding the filename/path for input csv file.
-    ux_input_csv_txt: Rc<RefCell<TextEditor>>,
+    ux_input_csv_txt: Rc<RefCell<TextDisplay>>,
     /// Buffer holding the filename/path for input xml file.
-    ux_input_xml_txt: Rc<RefCell<TextEditor>>,
+    ux_input_xml_txt: Rc<RefCell<TextDisplay>>,
     /// Buffer holding the filename/path for the output file.
     ux_output_file_txt: Rc<RefCell<TextEditor>>,
     /// Check button in config section.  
@@ -488,13 +488,13 @@ impl GUI {
         io_controls_group.add(&input_csv_btn);
 
         let input_csv_buf = TextBuffer::default();
-        let mut input_csv_box = TextEditor::default()
+        let mut input_csv_box = TextDisplay::default()
             .with_pos(input_csv_btn.x() + input_csv_btn.w() + io_box_padding, input_csv_btn.y())
             .with_size(io_controls_group.w() - (input_csv_btn.w() + (3 * io_box_padding)), io_box_height);
         input_csv_box.set_frame(io_box_frame);
         input_csv_box.set_scrollbar_align(Align::Bottom);
         input_csv_box.set_scrollbar_size(7);
-        input_csv_box.deactivate();
+        input_csv_box.set_color(Color::from_rgb(245,245,245));
         input_csv_box.set_buffer(input_csv_buf.clone());
         io_controls_group.add_resizable(&input_csv_box);
         let input_csv_ref = Rc::from(RefCell::from(input_csv_box));
@@ -510,10 +510,12 @@ impl GUI {
                         config.csv_sample_id_header = choice;
                     }//end matching whether we got response from user
                 } else {
-                    let input_csv_ref = input_csv_ref_clone.as_ref().borrow();
-                    if let Err(err_message) = GUI::create_io_dialog(&sender_clone, "CSVInputFile", &input_csv_ref, dialog::NativeFileChooserType::BrowseFile, dialog::NativeFileChooserOptions::UseFilterExt, "*.csv", "Please select a csv input file") {
+                    let mut input_csv_ref = input_csv_ref_clone.as_ref().borrow_mut();
+                    let mut input_csv_buf = input_csv_ref.buffer().unwrap_or_else(|| TextBuffer::default());
+                    if let Err(err_message) = GUI::create_io_dialog(&sender_clone, "CSVInputFile", &mut input_csv_buf, dialog::NativeFileChooserType::BrowseFile, dialog::NativeFileChooserOptions::UseFilterExt, "*.csv", "Please select a csv input file") {
                         println!("Encountered an error when attempting to show file dialog:\n{}", err_message);
                     }//end if we got an error
+                    input_csv_ref.set_buffer(input_csv_buf);
                 }//end else user didn't right-click
             }//end moving for closure
         });
@@ -531,13 +533,13 @@ impl GUI {
         io_controls_group.add(&input_xml_btn);
 
         let input_xml_buf = TextBuffer::default();
-        let mut input_xml_box = TextEditor::default()
+        let mut input_xml_box = TextDisplay::default()
             .with_pos(input_xml_btn.x() + input_xml_btn.w() + io_box_padding, input_xml_btn.y())
             .with_size(io_controls_group.w() - (input_xml_btn.w() + (3 * io_box_padding)), io_box_height);
         input_xml_box.set_frame(io_box_frame);
         input_xml_box.set_scrollbar_align(Align::Bottom);
         input_xml_box.set_scrollbar_size(7);
-        input_xml_box.deactivate();
+        input_xml_box.set_color(Color::from_rgb(245,245,245));
         input_xml_box.set_buffer(input_xml_buf.clone());
         io_controls_group.add_resizable(&input_xml_box);
         let input_xml_ref = Rc::from(RefCell::from(input_xml_box));
@@ -650,10 +652,12 @@ impl GUI {
                     let mut window_ref = window_ref_clone.borrow_mut();
                     window_ref.show();
                 } else {
-                    let input_xml_ref = input_xml_ref_clone.as_ref().borrow();
-                    if let Err(err_message) = GUI::create_io_dialog(&sender_clone, "XMLInputFile", &input_xml_ref, dialog::NativeFileChooserType::BrowseFile, dialog::NativeFileChooserOptions::UseFilterExt, "*.xml", "Please select an xml input file") {
+                    let mut input_xml_ref = input_xml_ref_clone.as_ref().borrow_mut();
+                    let mut input_xml_buf = input_xml_ref.buffer().unwrap_or_else(|| TextBuffer::default());
+                    if let Err(err_message) = GUI::create_io_dialog(&sender_clone, "XMLInputFile", &mut input_xml_buf, dialog::NativeFileChooserType::BrowseFile, dialog::NativeFileChooserOptions::UseFilterExt, "*.xml", "Please select an xml input file") {
                         println!("Encountered an error when attempting to show file dialog:\n{}", err_message);
                     }//end if we got an error
+                    input_xml_ref.set_buffer(input_xml_buf);
                 }//end else user didn't right-click
             }//end moving for closure
         });
@@ -686,10 +690,12 @@ impl GUI {
             let output_file_ref_clone = output_file_ref.clone();
             let sender_clone = s.clone();
             move |_| {
-                let output_file_ref = output_file_ref_clone.as_ref().borrow();
-                if let Err(err_message) = GUI::create_io_dialog(&sender_clone, "OutputFile", &output_file_ref, dialog::NativeFileChooserType::BrowseSaveFile, dialog::NativeFileChooserOptions::SaveAsConfirm, "", "Please specify the output file.") {
+                let mut output_file_ref = output_file_ref_clone.as_ref().borrow_mut();
+                let mut output_file_buf = output_file_ref.buffer().unwrap_or_else(|| TextBuffer::default());
+                if let Err(err_message) = GUI::create_io_dialog(&sender_clone, "OutputFile", &mut output_file_buf, dialog::NativeFileChooserType::BrowseSaveFile, dialog::NativeFileChooserOptions::SaveAsConfirm, "", "Please specify the output file.") {
                     println!("Encountered an error when attempting to show file dialog:\n{}", err_message);
                 }//end if we got an error
+                output_file_ref.set_buffer(output_file_buf);
             }//end moving for closure
         });
 
@@ -911,13 +917,7 @@ impl GUI {
 
     /// Helper method used in initialize to share code between handlers
     /// of io buttons.
-    fn create_io_dialog(sender: &Sender<InterfaceMessage>, msg_header: &str, txt: &TextEditor, dialog_type: dialog::NativeFileChooserType, dialog_option: dialog::NativeFileChooserOptions, dialog_filter: &str, dialog_title: &str ) -> Result<(), String> {
-        // make sure textbuffer is accessible
-        let mut txt_buf = match txt.buffer() {
-            Some(buf) => buf,
-            None => {
-                return Err(format!("For some reason we couldn't access the textbuffer. Oops. This should never happen."));
-            }};
+    fn create_io_dialog(sender: &Sender<InterfaceMessage>, msg_header: &str, txt: &mut TextBuffer, dialog_type: dialog::NativeFileChooserType, dialog_option: dialog::NativeFileChooserOptions, dialog_filter: &str, dialog_title: &str ) -> Result<(), String> {
         // set up dialog with all the settings
         let mut dialog = dialog::NativeFileChooser::new(dialog_type);
         dialog.set_option(dialog_option);
@@ -925,15 +925,17 @@ impl GUI {
         dialog.set_title(dialog_title);
         dialog.show();
         // make sure the dialog didn't have an error
-        let dialog_error = dialog.error_message().unwrap_or_else(|| "".to_owned()).replace("No error", "");
+        let dialog_error = dialog.error_message().unwrap_or_else(|| "".to_string()).replace("No error", "");
         if dialog_error != "" {
             return Err(format!("We encountered a dialog error somehow. Details below:\n{}", dialog_error));
         }//end if dialog had an error
+        let dialog_filename = dialog.filename();
+        drop(dialog);
         // make sure we can get the file from the dialog
-        match dialog.filename().file_name() {
+        match dialog_filename.file_name() {
             Some(filename) => {
-                txt_buf.set_text(filename.to_string_lossy().as_ref());
-                sender.send(InterfaceMessage::file_message_from_header(msg_header,dialog.filename()));
+                txt.set_text(filename.to_string_lossy().as_ref());
+                sender.send(InterfaceMessage::file_message_from_header(msg_header,dialog_filename));
             },
             None => return Err(format!("Couldn't get filename for some reason"))
         }//end matching whether we can get the filename to set the box
