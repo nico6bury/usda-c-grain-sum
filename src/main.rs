@@ -131,8 +131,10 @@ fn main() {
                             opener::reveal(output).unwrap();
                         }//end if user wants to open folder
                         input_csv_data = None;
-                        output_file = None;
                         input_xml_data = None;
+                        output_file = None;
+                        csv_input_file = None;
+                        xml_input_file = None;
                     } else {
                         gui.integrated_dialog_alert("It seems that a processing routine was run without any successful outputs.\nThis shouldn't happen...");
                     }//end else we never managed to process anything
