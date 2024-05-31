@@ -495,7 +495,7 @@ impl GUI {
         input_csv_box.set_scrollbar_align(Align::Bottom);
         input_csv_box.set_scrollbar_size(7);
         input_csv_box.set_color(Color::from_rgb(245,245,245));
-        input_csv_box.set_buffer(input_csv_buf.clone());
+        input_csv_box.set_buffer(input_csv_buf);
         io_controls_group.add_resizable(&input_csv_box);
         let input_csv_ref = Rc::from(RefCell::from(input_csv_box));
 
@@ -540,7 +540,7 @@ impl GUI {
         input_xml_box.set_scrollbar_align(Align::Bottom);
         input_xml_box.set_scrollbar_size(7);
         input_xml_box.set_color(Color::from_rgb(245,245,245));
-        input_xml_box.set_buffer(input_xml_buf.clone());
+        input_xml_box.set_buffer(input_xml_buf);
         io_controls_group.add_resizable(&input_xml_box);
         let input_xml_ref = Rc::from(RefCell::from(input_xml_box));
 
@@ -682,7 +682,7 @@ impl GUI {
         output_file_box.set_frame(io_box_frame);
         output_file_box.set_scrollbar_align(Align::Bottom);
         output_file_box.set_scrollbar_size(7);
-        output_file_box.set_buffer(output_file_buf.clone());
+        output_file_box.set_buffer(output_file_buf);
         io_controls_group.add_resizable(&output_file_box);
         let output_file_ref = Rc::from(RefCell::from(output_file_box));
 
