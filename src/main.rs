@@ -245,10 +245,10 @@ fn ensure_config_valid(gui: &mut GUI, config_store: &mut Option<ConfigStore>, co
     match config_store::try_read_config_path(config_name, false) {
         Ok(config_path_tmp) => {
             if !config_path_tmp.exists() {
-                let should_create_personal_file = gui.integrated_dialog_yes_no("It seems that a configuration hasn't been set up yet. Perhaps this is your first time starting this application?\nIf a personalized config is not created, we'll just save a default configuration.\n\nYou can change your config at any time, but would you like to choose a preset configuration now?");
+                let should_create_personal_file = gui.integrated_dialog_yes_no("The configuration hasn't been set up yet.\nWould you like to choose a preset configuration?");
                 let mut new_conf_stor = ConfigStore::default();
                 if should_create_personal_file {
-                    match gui.integrated_dialog_message_choice("Please choose the config preset you want, or None/Default if you want to just stick with the default config.", vec!["Rhett", "Scott", "Other"]) {
+                    match gui.integrated_dialog_message_choice("Please choose the config preset you want.", vec!["Rhett", "Scott", "Other"]) {
                         Some(0) => new_conf_stor = config_store::get_rhett_config(),
                         Some(1) => new_conf_stor = config_store::get_scott_config(),
                         Some(2) => new_conf_stor = ConfigStore::default(),
@@ -259,7 +259,7 @@ fn ensure_config_valid(gui: &mut GUI, config_store: &mut Option<ConfigStore>, co
                     Ok(_) => {
                         gui.set_config_store(&new_conf_stor);
                         *config_store = Some(new_conf_stor);
-                        gui.integrated_dialog_message("Your configuration was successfully written and set.\nIf you continue seeing messages about the config file when opening the program, please contact the developer.");
+                        // gui.integrated_dialog_message("Your configuration was successfully written and set.\nIf you continue seeing messages about the config file when opening the program, please contact the developer.");
                     },
                     Err(msg) => gui.integrated_dialog_alert(&format!("It seems we were unable to write the new configuration to a file,\nthough you should still be able to the program for now with the config you selected.\nError message was \"{}\".\nIf this operation keeps failing, please contact the developer.", msg))
                 }//end matching whether or not we successfully wrote a new config file
