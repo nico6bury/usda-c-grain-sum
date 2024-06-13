@@ -160,7 +160,7 @@ fn main() {
                 GUI::quit();
             },
             Some(InterfaceMessage::ConfigReset) => {
-                let new_conf = match gui.integrated_dialog_message_choice("Please choose the configuration preset you'd like to switch to:", vec!["Rhett", "Scott", "Other"]) {
+                let new_conf = match gui.integrated_dialog_message_choice("Please choose the configuration preset you'd like to switch to:", vec!["Wheat", "Sorghum", "Other"]) {
                     Some(0) => config_store::get_rhett_config(),
                     Some(1) => config_store::get_scott_config(),
                     _ => config_store::ConfigStore::default(),
@@ -250,7 +250,7 @@ fn ensure_config_valid(gui: &mut GUI, config_store: &mut Option<ConfigStore>, co
                 let should_create_personal_file = gui.integrated_dialog_yes_no("The configuration hasn't been set up yet.\nWould you like to choose a preset configuration?");
                 let mut new_conf_stor = ConfigStore::default();
                 if should_create_personal_file {
-                    match gui.integrated_dialog_message_choice("Please choose the config preset you want.", vec!["Rhett", "Scott", "Other"]) {
+                    match gui.integrated_dialog_message_choice("Please choose the config preset you want.", vec!["Wheat", "Sorghum", "Other"]) {
                         Some(0) => new_conf_stor = config_store::get_rhett_config(),
                         Some(1) => new_conf_stor = config_store::get_scott_config(),
                         Some(2) => new_conf_stor = ConfigStore::default(),
@@ -277,7 +277,7 @@ fn ensure_config_valid(gui: &mut GUI, config_store: &mut Option<ConfigStore>, co
                         let should_create_new = gui.integrated_dialog_yes_no("Problems with the config file might occur when changing versions.\nWhen the config file is deleted, the program will automatically create a new one by default.\nEven if a config file is not loaded, you can always set the config yourself using the section in the bottom right.\n\nWould you like to be delete the old config file and create a personalized one now?");
                         if should_create_new {
                             let mut new_conf_stor: Option<ConfigStore> = None;
-                            match gui.integrated_dialog_message_choice("Do you want a personalized config file?\nIf so, choose which preset you want:", vec!["Rhett", "Scott", "Other"]) {
+                            match gui.integrated_dialog_message_choice("Do you want a personalized config file?\nIf so, choose which preset you want:", vec!["Wheat", "Sorghum", "Other"]) {
                                 Some(0) => new_conf_stor = Some(config_store::get_rhett_config()),
                                 Some(1) => new_conf_stor = Some(config_store::get_scott_config()),
                                 Some(2) => new_conf_stor = Some(ConfigStore::default()),
