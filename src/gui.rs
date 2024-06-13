@@ -353,12 +353,12 @@ impl GUI {
         self.ux_cf_xml_sieve_chck.set_checked(config.xml_sieve_cols_enabled);
 
         match config.personalized_config_name.as_str() {
-            "Scott" | "Rhett"=> {
+            "Sorghum" | "Wheat"=> {
                 // let new_header = GUI::default_header_info();
                 // self.ux_header_buf.set_text(&new_header);
                 self.ux_cf_setting_preset_buf.set_label(&format!("Configuration for {}",&config.personalized_config_name));
-                // if config.personalized_config_name.eq("Scott") { self.ux_config_group.set_color(Color::from_rgb(220,239,220)) }
-                // if config.personalized_config_name.eq("Rhett") { self.ux_config_group.set_color(Color::from_rgb(220,220,239)) }
+                // if config.personalized_config_name.eq("Sorghum") { self.ux_config_group.set_color(Color::from_rgb(220,239,220)) }
+                // if config.personalized_config_name.eq("Wheat") { self.ux_config_group.set_color(Color::from_rgb(220,220,239)) }
             },
             _ => {
                 // self.ux_header_buf.set_text(&GUI::default_header_info());

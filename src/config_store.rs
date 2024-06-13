@@ -69,10 +69,10 @@ impl Default for ConfigStore {
     }//end default()
 }//end impl Default for ConfigStore
 
-/// Gets default config which is personalized for needs of Scott
+/// Gets default config which is personalized for needs of Sorghum
 pub fn get_scott_config() -> ConfigStore {
     let mut conf = ConfigStore::default();
-    conf.personalized_config_name = String::from("Scott");
+    conf.personalized_config_name = String::from("Sorghum");
     conf.csv_stat_columns_enabled = true;
     conf.csv_class_filter_filters = vec!["Sorghum".to_string()];
     conf.csv_stat_columns_columns = vec!["Area","Length","Width","Volume","Weight","Light","Hue","Saturation","Red","Green","Blue"].iter().map(|i| i.to_string()).collect();
@@ -81,10 +81,10 @@ pub fn get_scott_config() -> ConfigStore {
     return conf;
 }//end get_scott_config()
 
-/// Gets default config which is personalized for needs of Rhett
+/// Gets default config which is personalized for needs of Wheat
 pub fn get_rhett_config() -> ConfigStore {
     let mut conf = ConfigStore::default();
-    conf.personalized_config_name = String::from("Rhett");
+    conf.personalized_config_name = String::from("Wheat");
     conf.csv_class_filter_filters = vec!["Sound".to_string()];
     conf.csv_class_percent_enabled = false;
     return conf;
